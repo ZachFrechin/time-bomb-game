@@ -230,6 +230,28 @@ watch(() => gameStore.playerWireCards.length, (newLength) => {
   }
 }, { immediate: true });
 
+// Alternative: surveiller les résultats de coupe pour voir si c'est la fin de manche
+watch(() => gameStore.lastWireCutResult, (result) => {
+  if (result) {
+    console.log('Wire cut result:', result);
+    // Vérifier si toutes les cartes de la manche ont été révélées
+    const totalPlayers = gameStore.room?.players?.length || 0;
+    const cardsRevealed = gameStore.room?.gameState?.cardsRevealedThisRound || 0;
+
+    console.log('Cards revealed via cut result:', cardsRevealed, 'total:', totalPlayers);
+
+    if (cardsRevealed === totalPlayers && totalPlayers > 0) {
+      console.log('Detected end of round via cut result!');
+      setTimeout(() => {
+        if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value) {
+          console.log('Starting countdown from cut result watch');
+          startPreRedistributionCountdown();
+        }
+      }, 1500);
+    }
+  }
+});
+
 // Surveiller le changement de round pour afficher l'écran de déclaration
 watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   if (newRound && newRound !== currentRound.value) {
@@ -238,15 +260,17 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
 });
 
 // Surveiller si toutes les cartes ont été retournées pour déclencher la redistribution
-watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) => {
+watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, oldValue) => {
   const totalPlayers = gameStore.room?.players?.length || 0;
-  if (cardsRevealed === totalPlayers && totalPlayers > 0) {
+  console.log('Cards revealed watch:', cardsRevealed, 'total players:', totalPlayers);
+
+  if (cardsRevealed === totalPlayers && totalPlayers > 0 && cardsRevealed !== oldValue) {
+    console.log('All cards revealed! Starting countdown...');
     // Toutes les cartes ont été retournées, démarrer le premier timer
     setTimeout(() => {
-      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value) {
-        startPreRedistributionCountdown();
-      }
-    }, 1000); // Petit délai pour que l'utilisateur voit la dernière carte
+      console.log('About to start pre-redistribution countdown');
+      startPreRedistributionCountdown();
+    }, 1500); // Petit délai pour que l'utilisateur voit la dernière carte
   }
 });
 
@@ -323,14 +347,17 @@ const getLastCutPlayerName = () => {
 
 // Premier timer: 5 secondes d'analyse avant redistribution
 const startPreRedistributionCountdown = () => {
+  console.log('Starting pre-redistribution countdown');
   showPreRedistributionCountdown.value = true;
   preRedistributionCountdown.value = 5;
 
   const interval = setInterval(() => {
     preRedistributionCountdown.value--;
+    console.log('Pre-redistribution countdown:', preRedistributionCountdown.value);
     if (preRedistributionCountdown.value <= 0) {
       clearInterval(interval);
       showPreRedistributionCountdown.value = false;
+      console.log('Pre-redistribution finished, starting redistribution countdown');
 
       // Toujours démarrer le second timer
       startRedistributionCountdown();
@@ -340,6 +367,7 @@ const startPreRedistributionCountdown = () => {
 
 // Second timer: 5 secondes pendant la redistribution
 const startRedistributionCountdown = () => {
+  console.log('Starting redistribution countdown');
   showRedistributionCountdown.value = true;
   redistributionCountdown.value = 5;
 
@@ -348,9 +376,11 @@ const startRedistributionCountdown = () => {
 
   const interval = setInterval(() => {
     redistributionCountdown.value--;
+    console.log('Redistribution countdown:', redistributionCountdown.value);
     if (redistributionCountdown.value <= 0) {
       clearInterval(interval);
       showRedistributionCountdown.value = false;
+      console.log('Showing declaration screen');
 
       // Afficher l'écran de déclaration après le second timer
       showDeclaration.value = true;
