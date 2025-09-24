@@ -32,8 +32,8 @@
             {{ safeWiresRemaining }} 🔷
           </div>
           <div v-if="!showPreRedistributionCountdown && !showRedistributionCountdown && !showEndGameCountdown" class="text-xs text-gray-400">fils sûrs restants</div>
-          <div v-else-if="showPreRedistributionCountdown" class="text-xs text-gray-400">analyse...</div>
-          <div v-else-if="showRedistributionCountdown" class="text-xs text-gray-400">redistribution...</div>
+          <div v-else-if="showPreRedistributionCountdown" class="text-xs text-gray-400">Prochaine manche dans...</div>
+          <div v-else-if="showRedistributionCountdown" class="text-xs text-gray-400">Analyse</div>
           <div v-else class="text-xs text-gray-400">💥 BOOM!</div>
         </div>
 
@@ -273,10 +273,18 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
         wireCards: p.wireCards ? [...p.wireCards] : undefined
       })) || [];
 
-      // Démarrer le timer
+      // Démarrer le timer approprié selon la manche
+      const currentRound = gameStore.room?.gameState?.currentRound || 1;
       if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
-        console.log('✅ Starting pre-redistribution countdown for new round');
-        startPreRedistributionCountdown();
+        if (currentRound === 1) {
+          // Première manche: directement le timer "Analyse"
+          console.log('✅ First round - starting analysis timer directly');
+          startRedistributionCountdown();
+        } else {
+          // Autres manches: timer "Prochaine manche dans..." puis "Analyse"
+          console.log('✅ Starting next round countdown');
+          startPreRedistributionCountdown();
+        }
       } else {
         console.log('❌ Timer already running or declaration showing, skipping');
       }
@@ -361,9 +369,9 @@ const getLastCutPlayerName = () => {
   return player?.displayName || 'Inconnu';
 };
 
-// Premier timer: 5 secondes d'analyse avant redistribution
+// Premier timer: "Prochaine manche dans..." (avant redistribution)
 const startPreRedistributionCountdown = () => {
-  console.log('Starting pre-redistribution countdown');
+  console.log('Starting next round countdown');
   showPreRedistributionCountdown.value = true;
   preRedistributionCountdown.value = 5;
 
@@ -379,22 +387,15 @@ const startPreRedistributionCountdown = () => {
       frozenPlayerCards.value = null;
       frozenOtherPlayersCards.value = null;
 
-      // Démarrer le second timer seulement si c'est pas la première manche
-      const currentRound = gameStore.room?.gameState?.currentRound || 1;
-      if (currentRound > 1) {
-        startRedistributionCountdown();
-      } else {
-        // Première manche: montrer directement la déclaration
-        console.log('First round - showing declaration directly');
-        showDeclaration.value = true;
-      }
+      // Lancer le timer "Analyse" après la redistribution
+      startRedistributionCountdown();
     }
   }, 1000);
 };
 
-// Second timer: 5 secondes pendant la redistribution
+// Second timer: "Analyse" (après redistribution)
 const startRedistributionCountdown = () => {
-  console.log('Starting redistribution countdown');
+  console.log('Starting analysis countdown');
   showRedistributionCountdown.value = true;
   redistributionCountdown.value = 5;
 
