@@ -19,7 +19,7 @@
           <h2 class="text-sm font-semibold mb-2 text-blue-400 text-center">🕵️ Détectives</h2>
           <div class="space-y-1">
             <div v-for="player in goodPlayers" :key="player.id"
-                 class="px-2 py-1 bg-blue-900 rounded text-xs text-center">
+                 class="px-2 py-1.5 bg-blue-900 rounded text-sm font-medium text-center">
               {{ player.name }}
             </div>
           </div>
@@ -29,7 +29,7 @@
           <h2 class="text-sm font-semibold mb-2 text-red-400 text-center">💀 Saboteurs</h2>
           <div class="space-y-1">
             <div v-for="player in evilPlayers" :key="player.id"
-                 class="px-2 py-1 bg-red-900 rounded text-xs text-center">
+                 class="px-2 py-1.5 bg-red-900 rounded text-sm font-medium text-center">
               {{ player.name }}
             </div>
           </div>

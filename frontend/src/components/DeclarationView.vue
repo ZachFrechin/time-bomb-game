@@ -1,25 +1,22 @@
 <template>
-  <!-- Overlay semi-transparent en bas -->
-  <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm z-50 p-4">
-    <div class="card max-w-md mx-auto p-4">
-      <h2 class="text-lg font-bold text-center mb-3">🔍 Déclaration</h2>
+  <!-- Overlay semi-transparent compact centré -->
+  <div class="fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50 p-2">
+    <div class="card max-w-sm w-full mx-auto p-3 bg-gray-800">
+      <h2 class="text-sm font-bold text-center mb-2">🔍 Déclaration</h2>
 
-      <div class="text-center mb-3">
-        <p class="text-sm text-gray-400">Déclarez vos cartes aux autres</p>
-      </div>
-
-      <div class="space-y-3">
+      <div class="space-y-2">
+        <!-- Fils sûrs sur une ligne -->
         <div>
-          <label class="block text-sm font-medium mb-2 text-center">
-            Fils sûrs déclarés:
+          <label class="text-xs font-medium text-gray-400 block mb-1 text-center">
+            Fils sûrs: <span class="text-blue-400">🔷</span>
           </label>
-          <div class="flex justify-center space-x-2 flex-wrap gap-2">
+          <div class="flex justify-center space-x-1">
             <button
-              v-for="n in maxSafeWires"
+              v-for="n in Math.min(maxSafeWires, 6)"
               :key="n-1"
               @click="declaredSafeWires = n-1"
               :class="[
-                'w-12 h-12 rounded-lg font-bold text-lg',
+                'w-9 h-9 rounded font-bold text-sm',
                 declaredSafeWires === n-1
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -28,20 +25,18 @@
               {{ n-1 }}
             </button>
           </div>
-          <p class="text-xs text-gray-500 mt-1 text-center">
-            Max: {{ maxSafeWires - 1 }} fils
-          </p>
         </div>
 
+        <!-- Bombe sur une ligne -->
         <div>
-          <label class="block text-sm font-medium mb-2 text-center">
-            Avez-vous la bombe?
+          <label class="text-xs font-medium text-gray-400 block mb-1 text-center">
+            Bombe: <span class="text-red-400">💣</span>
           </label>
-          <div class="flex space-x-3 justify-center">
+          <div class="flex space-x-2 justify-center">
             <button
               @click="hasBomb = false"
               :class="[
-                'py-3 px-6 rounded-lg font-bold text-lg flex items-center space-x-2',
+                'py-2 px-4 rounded font-bold text-sm flex items-center space-x-1',
                 !hasBomb ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               ]"
             >
@@ -51,7 +46,7 @@
             <button
               @click="hasBomb = true"
               :class="[
-                'py-3 px-6 rounded-lg font-bold text-lg flex items-center space-x-2',
+                'py-2 px-4 rounded font-bold text-sm flex items-center space-x-1',
                 hasBomb ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               ]"
             >
@@ -62,10 +57,11 @@
         </div>
       </div>
 
-      <div class="mt-4 flex justify-center">
+      <!-- Bouton de validation compact -->
+      <div class="mt-3 flex justify-center">
         <button
           @click="submitDeclaration"
-          class="btn-primary py-3 px-8 text-lg font-bold"
+          class="btn-primary py-2 px-6 text-sm font-bold"
         >
           ✓ Valider
         </button>

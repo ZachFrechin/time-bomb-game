@@ -93,7 +93,7 @@
 
         <!-- Cartes -->
         <div class="flex space-x-1 justify-center">
-          <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="`${player.id}-${index}-${gameStore.room?.gameState?.currentRound || 1}`">
+          <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="`${player.id}-${index}-${pendingNewCards ? 'pending' : (gameStore.room?.gameState?.currentRound || 1)}`">
             <WireCard
               :is-cut="isWireCut(player.id, index)"
               :card-type="getWireType(player.id, index)"
@@ -164,6 +164,7 @@ const orderedPlayers = computed(() => {
 const currentRound = ref(gameStore.room?.gameState?.currentRound || 1);
 const lastCardsLength = ref(gameStore.playerWireCards.length);
 const hasShownInitialCountdown = ref(false);
+const pendingNewCards = ref(false);
 
 // Démarrer le décompte au montage si on est en jeu
 onMounted(() => {
@@ -214,14 +215,16 @@ watch(() => gameStore.room?.state, (newState) => {
 // Surveiller les changements de cartes pour déclencher les déclarations
 watch(() => gameStore.playerWireCards.length, (newLength) => {
   if (newLength > 0 && newLength !== lastCardsLength.value) {
-    lastCardsLength.value = newLength;
-
     // Si c'est la première fois qu'on reçoit des cartes et qu'on n'a pas encore montré le décompte
     if (!hasShownInitialCountdown.value && gameStore.room?.state === 'in_game') {
+      lastCardsLength.value = newLength;
       hasShownInitialCountdown.value = true;
       showCountdown.value = true;
-    } else if (!showCountdown.value) {
-      // Sinon, démarrer le timer de redistribution au lieu d'afficher directement
+    } else if (!showCountdown.value && !pendingNewCards.value) {
+      // Sinon, marquer qu'on a reçu de nouvelles cartes mais ne pas les afficher encore
+      pendingNewCards.value = true;
+      // Ne pas mettre à jour lastCardsLength encore
+      // Démarrer le timer de redistribution
       startRedistributionCountdown();
     }
   }
@@ -323,14 +326,21 @@ const startRedistributionCountdown = () => {
   showRedistributionCountdown.value = true;
   redistributionCountdown.value = 5;
 
-  // Reset des déclarations au début du timer de redistribution
-  gameStore.playerDeclarations = {};
-
   const interval = setInterval(() => {
     redistributionCountdown.value--;
     if (redistributionCountdown.value <= 0) {
       clearInterval(interval);
       showRedistributionCountdown.value = false;
+
+      // Maintenant que le timer est fini, appliquer les nouvelles cartes
+      if (pendingNewCards.value) {
+        lastCardsLength.value = gameStore.playerWireCards.length;
+        pendingNewCards.value = false;
+      }
+
+      // Reset des déclarations
+      gameStore.playerDeclarations = {};
+
       // Afficher l'écran de déclaration après le timer
       showDeclaration.value = true;
     }
