@@ -128,6 +128,18 @@ export const useGameStore = defineStore('game', () => {
           })) : undefined
         }));
       }
+
+      // Update game state if provided (happens after redistribution)
+      if (data.gameState && room.value?.gameState) {
+        console.log('📊 CLIENT: Updating wiresPerPlayer to', data.gameState.wiresPerPlayer);
+        room.value.gameState.wiresPerPlayer = data.gameState.wiresPerPlayer;
+        if (data.gameState.cardsRevealedThisRound !== undefined) {
+          room.value.gameState.cardsRevealedThisRound = data.gameState.cardsRevealedThisRound;
+        }
+        if (data.gameState.currentRound !== undefined) {
+          room.value.gameState.currentRound = data.gameState.currentRound;
+        }
+      }
     });
 
     socketService.on('game_over', (data) => {

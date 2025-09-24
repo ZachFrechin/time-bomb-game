@@ -348,7 +348,12 @@ export class GameEngine {
               }));
               console.log('📦 SERVER: Players data:', playersData[0]?.wireCards?.length, 'cards per player');
               socketServiceInstance.getIO().to(roomId).emit('players_update', {
-                players: playersData
+                players: playersData,
+                gameState: {
+                  wiresPerPlayer: gameState.wiresPerPlayer,
+                  cardsRevealedThisRound: 0,
+                  currentRound: gameState.currentRound
+                }
               });
 
               // Send new private hands to each player
