@@ -350,7 +350,7 @@ export class GameEngine {
         }, 5000); // 5 seconds delay - matches client first timer
 
         // Don't continue processing this round
-        return { gameOver: false, winner: null };
+        return { gameOver: false, winner: undefined };
       } else {
         // Continue round - targeted player becomes active
         const targetPlayerIndex = gameState.turnOrder.indexOf(targetId);
