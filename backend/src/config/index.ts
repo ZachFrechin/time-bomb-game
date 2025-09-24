@@ -24,7 +24,7 @@ export const config = {
     minPlayers: 4,
     maxPlayers: 8,
     defaultWiresPerPlayer: 5,
-    roomIdLength: 8,
+    roomIdLength: 4,
     reconnectTimeout: 60000,
     roomExpiration: 3600,
   },
