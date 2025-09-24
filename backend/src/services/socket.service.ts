@@ -362,7 +362,7 @@ export class SocketService {
     return this.gameEngine;
   }
 
-  emitToRoom(roomId: string, event: string, data: any) {
+  emitToRoom<K extends keyof ServerToClientEvents>(roomId: string, event: K, data: Parameters<ServerToClientEvents[K]>[0]) {
     this.io.to(roomId).emit(event, data);
   }
 }
