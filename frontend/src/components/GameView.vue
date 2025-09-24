@@ -257,11 +257,12 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
   const reachedMax = cardsRevealed === totalPlayers; // Atteint le maximum (4 pour 4 joueurs)
   const hasPlayers = totalPlayers > 0;
   const justReached = cardsRevealed !== oldValue; // Éviter les doublons
+  const isActuallyPlaying = cardsRevealed > 0; // Ne pas déclencher au début quand tout est à 0
 
-  console.log('Detection conditions: reachedMax=', reachedMax, '(', cardsRevealed, '===', totalPlayers, ') justReached=', justReached, 'hasPlayers=', hasPlayers);
+  console.log('Detection conditions: reachedMax=', reachedMax, '(', cardsRevealed, '===', totalPlayers, ') justReached=', justReached, 'hasPlayers=', hasPlayers, 'isPlaying=', isActuallyPlaying);
 
-  // Détection: on vient d'atteindre le maximum de cartes révélées
-  if (reachedMax && hasPlayers && justReached) {
+  // Détection: on vient d'atteindre le maximum de cartes révélées ET on a vraiment joué
+  if (reachedMax && hasPlayers && justReached && isActuallyPlaying) {
     console.log('🎯 END OF ROUND DETECTED! Starting countdown sequence...');
 
     // Attendre un tout petit peu pour que players_update arrive et mette à jour la dernière carte
@@ -298,8 +299,9 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
 
 const hideCountdown = () => {
   showCountdown.value = false;
-  // Démarrer le timer d'analyse pour le premier round aussi
-  startPreRedistributionCountdown();
+  // Démarrer le timer d'analyse pour le premier round
+  console.log('Starting analysis timer after initial countdown');
+  startRedistributionCountdown();
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
