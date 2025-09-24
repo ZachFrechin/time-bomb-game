@@ -231,7 +231,7 @@ watch(() => gameStore.playerWireCards.length, (newLength) => {
 }, { immediate: true });
 
 // Alternative: surveiller les résultats de coupe pour voir si c'est la fin de manche
-watch(() => gameStore.lastWireCutResult, (result) => {
+watch(() => gameStore.lastWireCutResult, (result, oldResult) => {
   if (result) {
     console.log('Wire cut result:', result);
     // Vérifier si toutes les cartes de la manche ont été révélées
@@ -240,14 +240,16 @@ watch(() => gameStore.lastWireCutResult, (result) => {
 
     console.log('Cards revealed via cut result:', cardsRevealed, 'total:', totalPlayers);
 
-    if (cardsRevealed === totalPlayers && totalPlayers > 0) {
-      console.log('Detected end of round via cut result!');
+    // Si on détecte une nouvelle manche (cardsRevealed repart à 0 ou 1) après un résultat
+    if (result !== oldResult && cardsRevealed <= 1 && totalPlayers > 0) {
+      console.log('Possible new round detected via cut result!');
       setTimeout(() => {
-        if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value) {
-          console.log('Starting countdown from cut result watch');
+        const stillLowCount = gameStore.room?.gameState?.cardsRevealedThisRound <= 1;
+        if (stillLowCount && !showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
+          console.log('Starting countdown from cut result watch (new round)');
           startPreRedistributionCountdown();
         }
-      }, 1500);
+      }, 2000); // Plus long délai pour être sûr
     }
   }
 });
@@ -262,15 +264,32 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
 // Surveiller si toutes les cartes ont été retournées pour déclencher la redistribution
 watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, oldValue) => {
   const totalPlayers = gameStore.room?.players?.length || 0;
-  console.log('Cards revealed watch:', cardsRevealed, 'total players:', totalPlayers);
+  console.log('Cards revealed watch:', cardsRevealed, 'old:', oldValue, 'total players:', totalPlayers);
 
-  if (cardsRevealed === totalPlayers && totalPlayers > 0 && cardsRevealed !== oldValue) {
-    console.log('All cards revealed! Starting countdown...');
-    // Toutes les cartes ont été retournées, démarrer le premier timer
+  // Détecter la fin de manche: on était à un nombre élevé et on redescend à 0 (nouvelle manche)
+  if (oldValue >= totalPlayers && cardsRevealed === 0 && totalPlayers > 0) {
+    console.log('Detected new round! Starting countdown...');
     setTimeout(() => {
-      console.log('About to start pre-redistribution countdown');
-      startPreRedistributionCountdown();
-    }, 1500); // Petit délai pour que l'utilisateur voit la dernière carte
+      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
+        console.log('About to start pre-redistribution countdown for new round');
+        startPreRedistributionCountdown();
+      } else {
+        console.log('Timer already running or declaration showing, skipping');
+      }
+    }, 1500);
+  }
+
+  // Alternative: détecter quand on atteint le maximum (au cas où)
+  else if (cardsRevealed === totalPlayers && totalPlayers > 0 && cardsRevealed !== oldValue) {
+    console.log('All cards revealed! Starting countdown...');
+    setTimeout(() => {
+      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
+        console.log('About to start pre-redistribution countdown for max cards');
+        startPreRedistributionCountdown();
+      } else {
+        console.log('Timer already running or declaration showing, skipping');
+      }
+    }, 1500);
   }
 });
 
