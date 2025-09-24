@@ -316,27 +316,36 @@ export class GameEngine {
       const playerCount = room.players.size;
       if (gameState.cardsRevealedThisRound >= playerCount) {
         // Round ends - wait 5 seconds then redistribute cards
+        console.log('🎯 SERVER: Round complete, starting 5s timer before redistribution');
         setTimeout(() => {
+          console.log('🔄 SERVER: 5s elapsed, redistributing cards...');
           const canContinue = this.redistributeCards(room);
+          console.log('📊 SERVER: Redistribution result:', canContinue);
+          console.log('📋 SERVER: New cards per player:', room.gameState?.wiresPerPlayer);
+
           if (!canContinue) {
             // Not enough cards to continue - evil wins
+            console.log('❌ SERVER: Not enough cards, evil wins');
             gameOver = true;
             winner = 'evil';
             room.state = 'finished';
             gameState.winner = winner;
           } else {
             // Send updated cards to clients
+            console.log('📡 SERVER: Sending players_update to clients');
             const { socketServiceInstance } = require('../services/socket.service');
             if (socketServiceInstance?.getIO) {
-              socketServiceInstance.getIO().to(roomId).emit('players_update', {
-                players: Array.from(room.players.values()).map(p => ({
-                  id: p.id,
-                  displayName: p.displayName,
-                  isConnected: p.isConnected,
-                  isMaster: p.isMaster,
-                  wireCards: p.wireCards
-                }))
-              });
+              const playersData = Array.from(room.players.values()).map(p => ({
+                id: p.id,
+                displayName: p.displayName,
+                isConnected: p.isConnected,
+                isMaster: p.isMaster,
+                wireCards: p.wireCards
+              }));
+              console.log('📦 SERVER: Players data:', playersData[0]?.wireCards?.length, 'cards per player');
+              socketServiceInstance.getIO().to(roomId).emit('players_update', playersData);
+            } else {
+              console.log('❌ SERVER: socketServiceInstance not available');
             }
           }
         }, 5000); // 5 seconds delay for client timers
