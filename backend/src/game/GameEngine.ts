@@ -315,10 +315,10 @@ export class GameEngine {
       // Check if round should end (revealed = player count)
       const playerCount = room.players.size;
       if (gameState.cardsRevealedThisRound >= playerCount) {
-        // Round ends - wait 10 seconds before redistributing cards (for client-side timers)
-        console.log('Round complete, waiting 10 seconds before redistribution...');
+        // Round ends - wait 5 seconds before redistributing cards (for client-side analysis timer)
+        console.log('Round complete, waiting 5 seconds before redistribution...');
         setTimeout(() => {
-          console.log('Redistributing cards after timer delay...');
+          console.log('Redistributing cards after first 5s timer...');
           const canContinue = this.redistributeCards(room);
           if (!canContinue) {
             // Not enough cards to continue - evil wins
@@ -336,7 +336,7 @@ export class GameEngine {
               }))
             });
           } else {
-            // Continue with new round
+            // Continue with new round - send new cards
             require('../services/socket.service').emitToRoom(roomId, 'players_update', {
               players: Array.from(room.players.values()).map(p => ({
                 id: p.id,
@@ -347,7 +347,7 @@ export class GameEngine {
               }))
             });
           }
-        }, 10000); // 10 seconds delay
+        }, 5000); // 5 seconds delay - matches client first timer
 
         // Don't continue processing this round
         return { gameOver: false, winner: null };
