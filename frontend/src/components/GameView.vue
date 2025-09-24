@@ -39,31 +39,30 @@
              'border-2 border-yellow-400 bg-yellow-900/20': player.id === gameStore.playerId && gameStore.isMyTurn
            }">
         <!-- Header joueur compact -->
-        <div class="mb-2">
-          <div class="flex justify-between items-center">
-            <div class="flex items-center space-x-1 min-w-0">
-              <div :class="[
-                'w-2 h-2 rounded-full flex-shrink-0',
-                player.isConnected ? 'bg-green-500' : 'bg-gray-500'
-              ]"></div>
-              <span class="text-xs font-semibold truncate max-w-[50px]">{{ player.displayName }}</span>
+        <div class="flex justify-between items-center mb-2">
+          <div class="flex items-center space-x-2 flex-1 min-w-0">
+            <div :class="[
+              'w-2 h-2 rounded-full flex-shrink-0',
+              player.isConnected ? 'bg-green-500' : 'bg-gray-500'
+            ]"></div>
+            <span class="text-sm font-semibold truncate">{{ player.displayName }}</span>
+
+            <!-- Tags déclarations bien visibles à côté du nom -->
+            <div v-if="playerDeclarations[player.id]" class="flex space-x-1 flex-shrink-0">
+              <!-- Badge fils sûrs avec emojis répétés -->
+              <span v-if="playerDeclarations[player.id].safeWires > 0" class="text-sm bg-indigo-700 px-2 py-1 rounded font-bold border-2 border-indigo-500">
+                {{ Array(playerDeclarations[player.id].safeWires).fill('🔷').join(' ') }}
+              </span>
+              <!-- Badge bombe si déclarée -->
+              <span v-if="playerDeclarations[player.id].hasBomb" class="text-sm bg-red-600 px-2 py-1 rounded font-bold animate-pulse border-2 border-red-400">
+                💣
+              </span>
             </div>
-            <div class="flex items-center space-x-1">
-              <!-- Tags déclarations séparés -->
-              <div v-if="playerDeclarations[player.id]" class="flex space-x-1">
-                <!-- Badge fils sûrs avec X fois l'emoji -->
-                <span v-if="playerDeclarations[player.id].safeWires > 0" class="inline-block text-xs bg-indigo-700 px-1 py-0.5 rounded font-bold">
-                  {{ playerDeclarations[player.id].safeWires }}🔷
-                </span>
-                <!-- Badge bombe si déclarée -->
-                <span v-if="playerDeclarations[player.id].hasBomb" class="inline-block text-xs bg-red-600 px-1 py-0.5 rounded font-bold animate-pulse">
-                  💣
-                </span>
-              </div>
-              <div v-if="gameStore.room?.masterId === player.id" class="text-xs bg-yellow-600 px-1 py-0.5 rounded">
-                ⭐
-              </div>
-            </div>
+          </div>
+
+          <!-- Étoile maître à droite -->
+          <div v-if="gameStore.room?.masterId === player.id" class="text-xs bg-yellow-600 px-1 py-0.5 rounded flex-shrink-0">
+            ⭐
           </div>
         </div>
 
@@ -149,6 +148,21 @@ onMounted(() => {
   }
 });
 
+// Écouter les messages chat pour les déclarations
+watch(() => gameStore.chatMessages, (messages) => {
+  const latestMessage = messages[messages.length - 1];
+  if (latestMessage && latestMessage.message.startsWith('DECLARATION:')) {
+    try {
+      const declarationData = JSON.parse(latestMessage.message.replace('DECLARATION:', ''));
+      if (declarationData.playerId !== gameStore.playerId) {
+        playerDeclarations.value[declarationData.playerId] = declarationData.declaration;
+      }
+    } catch (e) {
+      console.error('Error parsing declaration:', e);
+    }
+  }
+}, { deep: true });
+
 // Surveiller le début de partie pour le décompte
 watch(() => gameStore.room?.state, (newState) => {
   if (newState === 'in_game' && !hasShownInitialCountdown.value) {
@@ -197,6 +211,15 @@ const hideCountdown = () => {
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
   // Sauvegarder la déclaration du joueur
   playerDeclarations.value[gameStore.playerId] = declaration;
+
+  // Envoyer au serveur pour synchroniser avec tous les joueurs
+  if (gameStore.room) {
+    gameStore.sendChatMessage(`DECLARATION:${JSON.stringify({
+      playerId: gameStore.playerId,
+      playerName: gameStore.playerName,
+      declaration
+    })}`);
+  }
 
   showDeclaration.value = false;
 };
