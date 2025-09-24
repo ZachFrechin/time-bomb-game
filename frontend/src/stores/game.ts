@@ -86,7 +86,11 @@ export const useGameStore = defineStore('game', () => {
 
     socketService.on('private_hand', (data) => {
       playerRole.value = data.role;
-      playerWireCards.value = data.wireCards;
+      // Ensure all cards are reset with isCut = false
+      playerWireCards.value = data.wireCards.map(card => ({
+        ...card,
+        isCut: false
+      }));
     });
 
     socketService.on('player_turn', (data) => {
@@ -112,7 +116,15 @@ export const useGameStore = defineStore('game', () => {
     socketService.on('players_update', (data) => {
       // Update players with their wire cards
       if (data.players && room.value) {
-        room.value.players = data.players;
+        // If we're starting a new game, ensure all wire cards are reset
+        room.value.players = data.players.map(player => ({
+          ...player,
+          wireCards: player.wireCards ? player.wireCards.map(card => ({
+            ...card,
+            // Reset isCut if it's a new game (no cuts yet)
+            isCut: room.value?.gameState?.cardsRevealedThisRound ? card.isCut : false
+          })) : undefined
+        }));
       }
     });
 

@@ -39,27 +39,31 @@
              'border-2 border-yellow-400 bg-yellow-900/20': player.id === gameStore.playerId && gameStore.isMyTurn
            }">
         <!-- Header joueur compact -->
-        <div class="flex justify-between items-center mb-2">
-          <div class="flex items-center space-x-1 min-w-0 flex-1">
-            <div :class="[
-              'w-2 h-2 rounded-full flex-shrink-0',
-              player.isConnected ? 'bg-green-500' : 'bg-gray-500'
-            ]"></div>
-            <span class="text-xs sm:text-sm font-semibold truncate max-w-[60px] sm:max-w-20">{{ player.displayName }}</span>
-            <!-- Tags déclarations séparés -->
-            <div v-if="playerDeclarations[player.id]" class="flex space-x-1 flex-shrink-0">
-              <!-- Badge fils sûrs avec X fois l'emoji -->
-              <span v-if="playerDeclarations[player.id].safeWires > 0" class="text-xs bg-indigo-700 px-1 py-0.5 rounded font-bold border border-indigo-500">
-                {{ Array(playerDeclarations[player.id].safeWires).fill('🔷').join(' ') }}
-              </span>
-              <!-- Badge bombe si déclarée -->
-              <span v-if="playerDeclarations[player.id].hasBomb" class="text-xs bg-red-600 px-1 py-0.5 rounded font-bold animate-pulse border border-red-400">
-                💣
-              </span>
+        <div class="mb-2">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-1 min-w-0">
+              <div :class="[
+                'w-2 h-2 rounded-full flex-shrink-0',
+                player.isConnected ? 'bg-green-500' : 'bg-gray-500'
+              ]"></div>
+              <span class="text-xs font-semibold truncate max-w-[50px]">{{ player.displayName }}</span>
             </div>
-          </div>
-          <div v-if="gameStore.room?.masterId === player.id" class="text-xs bg-yellow-600 px-1 py-0.5 rounded flex-shrink-0">
-            ⭐
+            <div class="flex items-center space-x-1">
+              <!-- Tags déclarations séparés -->
+              <div v-if="playerDeclarations[player.id]" class="flex space-x-1">
+                <!-- Badge fils sûrs avec X fois l'emoji -->
+                <span v-if="playerDeclarations[player.id].safeWires > 0" class="inline-block text-xs bg-indigo-700 px-1 py-0.5 rounded font-bold">
+                  {{ playerDeclarations[player.id].safeWires }}🔷
+                </span>
+                <!-- Badge bombe si déclarée -->
+                <span v-if="playerDeclarations[player.id].hasBomb" class="inline-block text-xs bg-red-600 px-1 py-0.5 rounded font-bold animate-pulse">
+                  💣
+                </span>
+              </div>
+              <div v-if="gameStore.room?.masterId === player.id" class="text-xs bg-yellow-600 px-1 py-0.5 rounded">
+                ⭐
+              </div>
+            </div>
           </div>
         </div>
 
@@ -122,7 +126,9 @@ const loadDeclarations = () => {
     const stored = localStorage.getItem(declarationsKey.value);
     if (stored) {
       try {
-        playerDeclarations.value = JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        playerDeclarations.value = parsed;
+        console.log('Declarations loaded:', parsed);
       } catch (e) {
         console.error('Error loading declarations:', e);
       }
