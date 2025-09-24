@@ -340,10 +340,33 @@ export class GameEngine {
                 displayName: p.displayName,
                 isConnected: p.isConnected,
                 isMaster: p.isMaster,
-                wireCards: p.wireCards
+                wireCards: p.wireCards.map(card => ({
+                  position: card.position,
+                  isCut: card.isCut,
+                  type: card.isCut ? card.type : undefined, // Only show type if cut
+                })),
               }));
               console.log('📦 SERVER: Players data:', playersData[0]?.wireCards?.length, 'cards per player');
-              socketServiceInstance.getIO().to(roomId).emit('players_update', playersData);
+              socketServiceInstance.getIO().to(roomId).emit('players_update', {
+                players: playersData
+              });
+
+              // Send new private hands to each player
+              console.log('🎴 SERVER: Sending private hands to players');
+              room.players.forEach((player) => {
+                const playerSocket = socketServiceInstance.getIO().sockets.sockets.get(player.socketId);
+                if (playerSocket) {
+                  playerSocket.emit('private_hand', {
+                    role: player.role!,
+                    wireCards: player.wireCards.map((card, index) => ({
+                      position: index,
+                      isOwn: true,
+                      type: card.type,
+                      isCut: card.isCut,
+                    })),
+                  });
+                }
+              });
             } else {
               console.log('❌ SERVER: socketServiceInstance not available');
             }
