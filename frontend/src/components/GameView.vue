@@ -98,7 +98,7 @@
 
         <!-- Cartes -->
         <div class="flex space-x-1 justify-center">
-          <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="`${player.id}-${index}-${pendingNewCards ? 'pending' : (gameStore.room?.gameState?.currentRound || 1)}`">
+          <div v-for="(wire, index) in (pendingNewCards ? lastCardsLength - 1 : (gameStore.room?.gameState?.wiresPerPlayer || 5))" :key="`${player.id}-${index}-${gameStore.room?.gameState?.currentRound || 1}-${pendingNewCards ? 'old' : 'new'}`">
             <WireCard
               :is-cut="isWireCut(player.id, index)"
               :card-type="getWireType(player.id, index)"
@@ -220,28 +220,30 @@ watch(() => gameStore.room?.state, (newState) => {
 });
 
 // Surveiller les changements de cartes pour déclencher les déclarations
-watch(() => gameStore.playerWireCards.length, (newLength) => {
-  if (newLength > 0 && newLength !== lastCardsLength.value) {
+watch(() => gameStore.playerWireCards, (newCards, oldCards) => {
+  if (newCards.length > 0) {
     // Si c'est la première fois qu'on reçoit des cartes et qu'on n'a pas encore montré le décompte
     if (!hasShownInitialCountdown.value && gameStore.room?.state === 'in_game') {
-      lastCardsLength.value = newLength;
+      lastCardsLength.value = newCards.length;
       hasShownInitialCountdown.value = true;
       showCountdown.value = true;
-    } else if (!showCountdown.value && !pendingNewCards.value && !showPreRedistributionCountdown.value) {
-      // Sinon, marquer qu'on a reçu de nouvelles cartes mais ne pas les afficher encore
-      pendingNewCards.value = true;
-      // Les nouvelles cartes seront appliquées après le premier timer de 5s
+    } else if (oldCards.length > 0 && newCards.length !== lastCardsLength.value) {
+      // Nouvelles cartes reçues (redistribution)
+      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value) {
+        // Stocker les nouvelles cartes temporairement
+        pendingNewCards.value = true;
+        // Démarrer immédiatement le premier timer
+        startPreRedistributionCountdown();
+      }
     }
   }
-}, { immediate: true });
+}, { immediate: true, deep: true });
 
 // Surveiller le changement de round pour afficher l'écran de déclaration
 watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   if (newRound && newRound !== currentRound.value) {
     currentRound.value = newRound;
-
-    // Démarrer le timer avant redistribution
-    startPreRedistributionCountdown();
+    // Ne pas démarrer le timer ici, il sera déclenché par le watch des cartes
   }
 });
 
@@ -249,10 +251,8 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
 watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) => {
   const totalPlayers = gameStore.room?.players?.length || 0;
   if (cardsRevealed === totalPlayers && totalPlayers > 0) {
-    // Toutes les cartes ont été retournées, démarrer le premier timer
-    setTimeout(() => {
-      startPreRedistributionCountdown();
-    }, 1000); // Petit délai pour que l'utilisateur voit la dernière carte
+    // Toutes les cartes ont été retournées
+    // Les nouvelles cartes vont arriver, le watch des cartes déclenchera le timer
   }
 });
 
@@ -260,8 +260,8 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) =
 
 const hideCountdown = () => {
   showCountdown.value = false;
-  // Afficher directement la déclaration pour le premier round
-  showDeclaration.value = true;
+  // Démarrer le timer d'analyse pour le premier round aussi
+  startPreRedistributionCountdown();
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
@@ -338,14 +338,16 @@ const startPreRedistributionCountdown = () => {
       clearInterval(interval);
       showPreRedistributionCountdown.value = false;
 
-      // Maintenant appliquer les nouvelles cartes si elles sont en attente
+      // Si c'est une redistribution, appliquer les nouvelles cartes MAINTENANT (entre les deux timers)
       if (pendingNewCards.value) {
         lastCardsLength.value = gameStore.playerWireCards.length;
         pendingNewCards.value = false;
+        // Démarrer le second timer de redistribution
+        startRedistributionCountdown();
+      } else {
+        // Premier round: pas de redistribution, juste afficher la déclaration
+        showDeclaration.value = true;
       }
-
-      // Démarrer le second timer de redistribution
-      startRedistributionCountdown();
     }
   }, 1000);
 };
