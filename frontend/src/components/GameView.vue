@@ -171,6 +171,8 @@ const orderedPlayers = computed(() => {
 const currentRound = ref(gameStore.room?.gameState?.currentRound || 1);
 const lastCardsLength = ref(gameStore.playerWireCards.length);
 const hasShownInitialCountdown = ref(false);
+const frozenPlayerCards = ref(null);
+const frozenOtherPlayersCards = ref(null);
 
 // Démarrer le décompte au montage si on est en jeu
 onMounted(() => {
@@ -243,6 +245,14 @@ watch(() => gameStore.lastWireCutResult, (result, oldResult) => {
     // Si on détecte une nouvelle manche (cardsRevealed repart à 0 ou 1) après un résultat
     if (result !== oldResult && cardsRevealed <= 1 && totalPlayers > 0) {
       console.log('Possible new round detected via cut result!');
+
+      // Sauvegarder l'état actuel des cartes AVANT de démarrer les timers
+      frozenPlayerCards.value = [...gameStore.playerWireCards];
+      frozenOtherPlayersCards.value = gameStore.room?.players?.map(p => ({
+        ...p,
+        wireCards: p.wireCards ? [...p.wireCards] : undefined
+      })) || [];
+
       setTimeout(() => {
         const stillLowCount = gameStore.room?.gameState?.cardsRevealedThisRound <= 1;
         if (stillLowCount && !showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
@@ -269,6 +279,14 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
   // Détecter la fin de manche: on était à un nombre élevé et on redescend à 0 (nouvelle manche)
   if (oldValue >= totalPlayers && cardsRevealed === 0 && totalPlayers > 0) {
     console.log('Detected new round! Starting countdown...');
+
+    // Sauvegarder l'état actuel des cartes AVANT de démarrer les timers
+    frozenPlayerCards.value = [...gameStore.playerWireCards];
+    frozenOtherPlayersCards.value = gameStore.room?.players?.map(p => ({
+      ...p,
+      wireCards: p.wireCards ? [...p.wireCards] : undefined
+    })) || [];
+
     setTimeout(() => {
       if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
         console.log('About to start pre-redistribution countdown for new round');
@@ -315,24 +333,28 @@ const canCutWire = (playerId: string) => {
 
 const isWireCut = (playerId: string, wireIndex: number) => {
   if (playerId === gameStore.playerId) {
-    // For own cards, check playerWireCards
-    const wire = gameStore.playerWireCards[wireIndex];
+    // For own cards, use frozen cards during first timer, otherwise normal cards
+    const cards = frozenPlayerCards.value || gameStore.playerWireCards;
+    const wire = cards[wireIndex];
     return wire?.isCut || false;
   }
-  // For other players, we can't see their cards unless they're revealed
-  const player = gameStore.room?.players.find(p => p.id === playerId);
+  // For other players, use frozen cards during first timer
+  const players = frozenOtherPlayersCards.value || gameStore.room?.players || [];
+  const player = players.find(p => p.id === playerId);
   const wire = player?.wireCards?.[wireIndex];
   return wire?.isCut || false;
 };
 
 const getWireType = (playerId: string, wireIndex: number) => {
   if (playerId === gameStore.playerId) {
-    // For own cards, always show the type
-    const wire = gameStore.playerWireCards[wireIndex];
+    // For own cards, use frozen cards during first timer, otherwise normal cards
+    const cards = frozenPlayerCards.value || gameStore.playerWireCards;
+    const wire = cards[wireIndex];
     return wire?.type;
   }
-  // For other players, only show type if the card is cut (revealed)
-  const player = gameStore.room?.players.find(p => p.id === playerId);
+  // For other players, use frozen cards during first timer
+  const players = frozenOtherPlayersCards.value || gameStore.room?.players || [];
+  const player = players.find(p => p.id === playerId);
   const wire = player?.wireCards?.[wireIndex];
   return wire?.isCut ? wire.type : undefined;
 };
@@ -378,7 +400,11 @@ const startPreRedistributionCountdown = () => {
       showPreRedistributionCountdown.value = false;
       console.log('Pre-redistribution finished, starting redistribution countdown');
 
-      // Toujours démarrer le second timer
+      // Maintenant libérer les cartes gelées pour montrer les nouvelles
+      frozenPlayerCards.value = null;
+      frozenOtherPlayersCards.value = null;
+
+      // Démarrer le second timer
       startRedistributionCountdown();
     }
   }, 1000);
