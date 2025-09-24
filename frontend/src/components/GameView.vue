@@ -15,10 +15,21 @@
         </div>
 
         <div class="text-center flex-1">
-          <div class="text-2xl font-bold text-red-400 animate-pulse">
+          <!-- Timer de redistribution -->
+          <div v-if="showRedistributionCountdown" class="text-2xl font-bold text-orange-400 animate-pulse">
+            {{ redistributionCountdown }}
+          </div>
+          <!-- Timer de fin de partie -->
+          <div v-else-if="showEndGameCountdown" class="text-2xl font-bold text-red-500 animate-pulse">
+            {{ endGameCountdown }} 💥
+          </div>
+          <!-- Affichage normal -->
+          <div v-else class="text-2xl font-bold text-red-400 animate-pulse">
             {{ safeWiresRemaining }} 🔷
           </div>
-          <div class="text-xs text-gray-400">fils sûrs restants</div>
+          <div v-if="!showRedistributionCountdown && !showEndGameCountdown" class="text-xs text-gray-400">fils sûrs restants</div>
+          <div v-else-if="showRedistributionCountdown" class="text-xs text-gray-400">redistribution...</div>
+          <div v-else class="text-xs text-gray-400">💥 BOOM!</div>
         </div>
 
         <div class="text-right">
@@ -125,9 +136,13 @@ import CountdownView from './CountdownView.vue';
 
 const gameStore = useGameStore();
 
-// État pour les modals
+// État pour les modals et timers
 const showDeclaration = ref(false);
 const showCountdown = ref(false);
+const showRedistributionCountdown = ref(false);
+const showEndGameCountdown = ref(false);
+const redistributionCountdown = ref(5);
+const endGameCountdown = ref(3);
 
 // Calculer les fils sûrs restants
 const safeWiresRemaining = computed(() => {
@@ -163,6 +178,24 @@ watch(() => gameStore.playerDeclarations, (newDeclarations) => {
   console.log('Declaration changes:', newDeclarations);
 }, { deep: true });
 
+// Surveiller les résultats de coupe pour décrémenter les badges et déclencher les timers
+watch(() => gameStore.lastWireCutResult, (result) => {
+  if (result) {
+    // Si c'est un fil sûr, décrémenter le badge du joueur concerné
+    if (result.cardType === 'safe' && gameStore.playerDeclarations[result.targetId]) {
+      const declaration = gameStore.playerDeclarations[result.targetId];
+      if (declaration.safeWires > 0) {
+        declaration.safeWires--;
+      }
+    }
+
+    // Si c'est une bombe, démarrer le timer de fin de partie
+    if (result.cardType === 'bomb') {
+      startEndGameCountdown();
+    }
+  }
+});
+
 // Surveiller le début de partie pour le décompte
 watch(() => gameStore.room?.state, (newState) => {
   if (newState === 'in_game' && !hasShownInitialCountdown.value) {
@@ -191,7 +224,20 @@ watch(() => gameStore.playerWireCards.length, (newLength) => {
 watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   if (newRound && newRound !== currentRound.value) {
     currentRound.value = newRound;
-    showDeclaration.value = true;
+
+    // Démarrer le timer de redistribution
+    startRedistributionCountdown();
+  }
+});
+
+// Surveiller si toutes les cartes ont été retournées pour déclencher la redistribution
+watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) => {
+  const totalPlayers = gameStore.room?.players?.length || 0;
+  if (cardsRevealed === totalPlayers && totalPlayers > 0) {
+    // Toutes les cartes ont été retournées, préparer la redistribution
+    setTimeout(() => {
+      startRedistributionCountdown();
+    }, 1000); // Petit délai pour que l'utilisateur voit la dernière carte
   }
 });
 
@@ -264,5 +310,33 @@ const getLastCutPlayerName = () => {
 
   const player = gameStore.room?.players.find(p => p.id === targetId);
   return player?.displayName || 'Inconnu';
+};
+
+const startRedistributionCountdown = () => {
+  showRedistributionCountdown.value = true;
+  redistributionCountdown.value = 5;
+
+  const interval = setInterval(() => {
+    redistributionCountdown.value--;
+    if (redistributionCountdown.value <= 0) {
+      clearInterval(interval);
+      showRedistributionCountdown.value = false;
+      // Afficher l'écran de déclaration après le timer
+      showDeclaration.value = true;
+    }
+  }, 1000);
+};
+
+const startEndGameCountdown = () => {
+  showEndGameCountdown.value = true;
+  endGameCountdown.value = 3;
+
+  const interval = setInterval(() => {
+    endGameCountdown.value--;
+    if (endGameCountdown.value <= 0) {
+      clearInterval(interval);
+      showEndGameCountdown.value = false;
+    }
+  }, 1000);
 };
 </script>
