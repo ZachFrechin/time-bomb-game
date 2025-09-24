@@ -189,9 +189,16 @@ watch(() => gameStore.lastWireCutResult, (result) => {
       }
     }
 
-    // Si c'est une bombe, démarrer le timer de fin de partie
+    // Si c'est une bombe, démarrer le timer de fin de partie et empêcher l'affichage immédiat
     if (result.cardType === 'bomb') {
+      // Empêcher temporairement le changement d'état vers 'finished'
+      gameStore.preventGameOverDisplay = true;
       startEndGameCountdown();
+
+      // Permettre l'affichage de l'écran de fin après 3 secondes
+      setTimeout(() => {
+        gameStore.preventGameOverDisplay = false;
+      }, 3000);
     }
   }
 });
@@ -214,8 +221,8 @@ watch(() => gameStore.playerWireCards.length, (newLength) => {
       hasShownInitialCountdown.value = true;
       showCountdown.value = true;
     } else if (!showCountdown.value) {
-      // Sinon, afficher directement l'écran de déclaration (redistribution)
-      showDeclaration.value = true;
+      // Sinon, démarrer le timer de redistribution au lieu d'afficher directement
+      startRedistributionCountdown();
     }
   }
 }, { immediate: true });
@@ -245,8 +252,8 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) =
 
 const hideCountdown = () => {
   showCountdown.value = false;
-  // Afficher l'écran de déclaration après le décompte
-  showDeclaration.value = true;
+  // Démarrer le timer de redistribution au lieu d'afficher directement
+  startRedistributionCountdown();
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
@@ -316,6 +323,9 @@ const startRedistributionCountdown = () => {
   showRedistributionCountdown.value = true;
   redistributionCountdown.value = 5;
 
+  // Reset des déclarations au début du timer de redistribution
+  gameStore.playerDeclarations = {};
+
   const interval = setInterval(() => {
     redistributionCountdown.value--;
     if (redistributionCountdown.value <= 0) {
@@ -336,6 +346,8 @@ const startEndGameCountdown = () => {
     if (endGameCountdown.value <= 0) {
       clearInterval(interval);
       showEndGameCountdown.value = false;
+      // Laisser le serveur gérer l'affichage de l'écran de fin
+      // Ne pas masquer l'interface immédiatement
     }
   }, 1000);
 };

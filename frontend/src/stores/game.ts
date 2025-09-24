@@ -25,6 +25,7 @@ export const useGameStore = defineStore('game', () => {
   const allPlayersWithRoles = ref<Array<{ id: string; name: string; role: RoleType }>>([]);
   const socketListenersSetup = ref(false);
   const playerDeclarations = ref<Record<string, { safeWires: number; hasBomb: boolean }>>({});
+  const preventGameOverDisplay = ref(false);
 
   const isMyTurn = computed(() => {
     return currentTurnPlayerId.value === playerId.value;
@@ -133,8 +134,18 @@ export const useGameStore = defineStore('game', () => {
       gameOver.value = true;
       winner.value = data.winnerTeam;
       allPlayersWithRoles.value = data.players;
-      if (room.value) {
+      if (room.value && !preventGameOverDisplay.value) {
         room.value.state = 'finished';
+      } else if (room.value && preventGameOverDisplay.value) {
+        // Attendre que preventGameOverDisplay devienne false
+        const checkInterval = setInterval(() => {
+          if (!preventGameOverDisplay.value) {
+            clearInterval(checkInterval);
+            if (room.value) {
+              room.value.state = 'finished';
+            }
+          }
+        }, 100);
       }
     });
 
@@ -325,6 +336,7 @@ export const useGameStore = defineStore('game', () => {
       gameOver.value = false;
       winner.value = null;
       allPlayersWithRoles.value = [];
+      preventGameOverDisplay.value = false;
 
       // Reset wire cards for all players
       if (room.value.players) {
@@ -359,6 +371,7 @@ export const useGameStore = defineStore('game', () => {
     winner.value = null;
     allPlayersWithRoles.value = [];
     playerDeclarations.value = {};
+    preventGameOverDisplay.value = false;
     socketListenersSetup.value = false;
     socketService.disconnect();
   };
@@ -391,5 +404,6 @@ export const useGameStore = defineStore('game', () => {
     restartGame,
     reset,
     playerDeclarations,
+    preventGameOverDisplay,
   };
 });
