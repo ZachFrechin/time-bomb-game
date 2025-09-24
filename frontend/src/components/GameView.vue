@@ -3,12 +3,24 @@
     <!-- Header compact -->
     <div class="card p-2 flex-shrink-0">
       <div class="flex justify-between items-center">
+        <div class="text-left">
+          <div v-if="gameStore.lastWireCutResult" class="text-center">
+            <div class="text-lg">
+              {{ getCardEmoji(gameStore.lastWireCutResult.cardType) }}
+            </div>
+            <div class="text-xs text-gray-400">
+              {{ getLastCutPlayerName() }}
+            </div>
+          </div>
+        </div>
+
         <div class="text-center flex-1">
           <div class="text-2xl font-bold text-red-400 animate-pulse">
             {{ safeWiresRemaining }} 🔷
           </div>
           <div class="text-xs text-gray-400">fils sûrs restants</div>
         </div>
+
         <div class="text-right">
           <div class="text-xs text-gray-400">Tour:</div>
           <div class="text-sm font-bold" :class="gameStore.isMyTurn ? 'text-green-400 animate-pulse' : 'text-blue-400'">
@@ -31,7 +43,7 @@
 
 
     <!-- Zone de jeu principale -->
-    <div class="flex-1 min-h-0 overflow-y-auto space-y-2 px-1">
+    <div class="flex-1 min-h-0 overflow-y-auto space-y-2 px-1 pb-4">
       <div v-for="player in orderedPlayers" :key="player.id"
            class="card p-2"
            :class="{
@@ -39,30 +51,32 @@
              'border-2 border-yellow-400 bg-yellow-900/20': player.id === gameStore.playerId && gameStore.isMyTurn
            }">
         <!-- Header joueur compact -->
-        <div class="flex justify-between items-center mb-2">
-          <div class="flex items-center space-x-2 flex-1 min-w-0">
-            <div :class="[
-              'w-2 h-2 rounded-full flex-shrink-0',
-              player.isConnected ? 'bg-green-500' : 'bg-gray-500'
-            ]"></div>
-            <span class="text-sm font-semibold truncate">{{ player.displayName }}</span>
+        <div class="mb-3">
+          <div class="flex justify-between items-center mb-1">
+            <div class="flex items-center space-x-2">
+              <div :class="[
+                'w-2 h-2 rounded-full flex-shrink-0',
+                player.isConnected ? 'bg-green-500' : 'bg-gray-500'
+              ]"></div>
+              <span class="text-sm font-semibold">{{ player.displayName }}</span>
+            </div>
 
-            <!-- Tags déclarations bien visibles à côté du nom -->
-            <div v-if="gameStore.playerDeclarations[player.id]" class="flex space-x-1 flex-shrink-0">
-              <!-- Badge fils sûrs avec emojis répétés -->
-              <span v-if="gameStore.playerDeclarations[player.id].safeWires > 0" class="text-sm bg-indigo-700 px-2 py-1 rounded font-bold border-2 border-indigo-500">
-                {{ Array(gameStore.playerDeclarations[player.id].safeWires).fill('🔷').join(' ') }}
-              </span>
-              <!-- Badge bombe si déclarée -->
-              <span v-if="gameStore.playerDeclarations[player.id].hasBomb" class="text-sm bg-red-600 px-2 py-1 rounded font-bold animate-pulse border-2 border-red-400">
-                💣
-              </span>
+            <!-- Étoile maître à droite -->
+            <div v-if="gameStore.room?.masterId === player.id" class="text-xs bg-yellow-600 px-1 py-0.5 rounded flex-shrink-0">
+              ⭐
             </div>
           </div>
 
-          <!-- Étoile maître à droite -->
-          <div v-if="gameStore.room?.masterId === player.id" class="text-xs bg-yellow-600 px-1 py-0.5 rounded flex-shrink-0">
-            ⭐
+          <!-- Tags déclarations sous le nom -->
+          <div v-if="gameStore.playerDeclarations[player.id]" class="flex space-x-1 justify-center">
+            <!-- Badge fils sûrs avec emojis répétés -->
+            <span v-if="gameStore.playerDeclarations[player.id].safeWires > 0" class="text-sm bg-indigo-700 px-2 py-1 rounded font-bold border-2 border-indigo-500">
+              {{ Array(gameStore.playerDeclarations[player.id].safeWires).fill('🔷').join(' ') }}
+            </span>
+            <!-- Badge bombe si déclarée -->
+            <span v-if="gameStore.playerDeclarations[player.id].hasBomb" class="text-sm bg-red-600 px-2 py-1 rounded font-bold animate-pulse border-2 border-red-400">
+              💣
+            </span>
           </div>
         </div>
 
@@ -229,5 +243,26 @@ const cutWire = (playerId: string, wireIndex: number) => {
   if (canCutWire(playerId)) {
     gameStore.cutWire(playerId, wireIndex);
   }
+};
+
+const getCardEmoji = (cardType: string) => {
+  switch (cardType) {
+    case 'bomb': return '💣';
+    case 'safe': return '🔷';
+    case 'neutral': return '⚡';
+    default: return '❓';
+  }
+};
+
+const getLastCutPlayerName = () => {
+  if (!gameStore.lastWireCutResult) return '';
+
+  const targetId = gameStore.lastWireCutResult.targetId;
+  if (targetId === gameStore.playerId) {
+    return 'Vous';
+  }
+
+  const player = gameStore.room?.players.find(p => p.id === targetId);
+  return player?.displayName || 'Inconnu';
 };
 </script>
