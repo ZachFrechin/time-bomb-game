@@ -13,7 +13,7 @@ import {
 
 export class SocketService {
   private io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-  private gameEngine: GameEngine;
+  private gameEngine!: GameEngine;
 
   constructor(server: Server) {
     this.io = new SocketIOServer(server, {
@@ -23,7 +23,7 @@ export class SocketService {
       },
     });
 
-    this.this.gameEngine = new GameEngine(this);
+    this.gameEngine = new GameEngine(this);
     this.setupEventHandlers();
   }
 
@@ -360,5 +360,9 @@ export class SocketService {
 
   getGameEngine() {
     return this.gameEngine;
+  }
+
+  emitToRoom(roomId: string, event: string, data: any) {
+    this.io.to(roomId).emit(event, data);
   }
 }
