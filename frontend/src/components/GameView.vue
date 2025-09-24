@@ -117,31 +117,8 @@ const showDeclaration = ref(false);
 const showCountdown = ref(false);
 const playerDeclarations = ref<Record<string, { safeWires: number; hasBomb: boolean }>>({});
 
-// Clé pour synchroniser les déclarations entre joueurs
-const declarationsKey = computed(() => `declarations_${gameStore.room?.id}_round_${gameStore.room?.gameState?.currentRound}`);
-
-// Charger les déclarations existantes
-const loadDeclarations = () => {
-  if (typeof window !== 'undefined' && declarationsKey.value) {
-    const stored = localStorage.getItem(declarationsKey.value);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        playerDeclarations.value = parsed;
-        console.log('Declarations loaded:', parsed);
-      } catch (e) {
-        console.error('Error loading declarations:', e);
-      }
-    }
-  }
-};
-
-// Sauvegarder les déclarations
-const saveDeclarations = () => {
-  if (typeof window !== 'undefined' && declarationsKey.value) {
-    localStorage.setItem(declarationsKey.value, JSON.stringify(playerDeclarations.value));
-  }
-};
+// Les déclarations sont maintenant uniquement locales à ce client
+// (en attendant la synchronisation via Socket.IO)
 
 // Calculer les fils sûrs restants
 const safeWiresRemaining = computed(() => {
@@ -164,27 +141,11 @@ const currentRound = ref(gameStore.room?.gameState?.currentRound || 1);
 const lastCardsLength = ref(gameStore.playerWireCards.length);
 const hasShownInitialCountdown = ref(false);
 
-// Polling pour synchroniser les déclarations
-let pollInterval: number | null = null;
-
 // Démarrer le décompte au montage si on est en jeu
 onMounted(() => {
   if (gameStore.room?.state === 'in_game' && !hasShownInitialCountdown.value) {
     hasShownInitialCountdown.value = true;
     showCountdown.value = true;
-  }
-  // Charger les déclarations existantes
-  loadDeclarations();
-
-  // Démarrer le polling pour synchroniser les déclarations
-  pollInterval = setInterval(() => {
-    loadDeclarations();
-  }, 1000); // Vérifier toutes les secondes
-});
-
-onUnmounted(() => {
-  if (pollInterval) {
-    clearInterval(pollInterval);
   }
 });
 
@@ -200,9 +161,6 @@ watch(() => gameStore.room?.state, (newState) => {
 watch(() => gameStore.playerWireCards.length, (newLength) => {
   if (newLength > 0 && newLength !== lastCardsLength.value) {
     lastCardsLength.value = newLength;
-
-    // RESET COMPLET des déclarations à chaque nouvelle distribution
-    playerDeclarations.value = {};
 
     // Si c'est la première fois qu'on reçoit des cartes et qu'on n'a pas encore montré le décompte
     if (!hasShownInitialCountdown.value && gameStore.room?.state === 'in_game') {
@@ -220,14 +178,14 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   if (newRound && newRound !== currentRound.value) {
     currentRound.value = newRound;
     showDeclaration.value = true;
-    // Charger les déclarations du nouveau round
-    loadDeclarations();
   }
 });
 
-// Surveiller les changements de clé pour recharger les déclarations
-watch(declarationsKey, () => {
-  loadDeclarations();
+// Réinitialiser les déclarations à chaque nouveau round
+watch(() => gameStore.room?.gameState?.currentRound, (newRound, oldRound) => {
+  if (newRound !== oldRound && newRound) {
+    playerDeclarations.value = {};
+  }
 });
 
 const hideCountdown = () => {
@@ -237,22 +195,8 @@ const hideCountdown = () => {
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
-  // Sauvegarder la déclaration du joueur LOCALEMENT pour tous (hack temporaire)
+  // Sauvegarder la déclaration du joueur
   playerDeclarations.value[gameStore.playerId] = declaration;
-
-  // Sauvegarder dans localStorage pour partager avec autres joueurs (même si imparfait)
-  saveDeclarations();
-
-  // Pour les autres joueurs, simuler des déclarations aléatoires basées sur leur rôle (debug temporaire)
-  gameStore.room?.players.forEach(player => {
-    if (player.id !== gameStore.playerId && !playerDeclarations.value[player.id]) {
-      // Déclaration factice pour test
-      playerDeclarations.value[player.id] = {
-        safeWires: Math.floor(Math.random() * 3) + 1,
-        hasBomb: Math.random() > 0.7
-      };
-    }
-  });
 
   showDeclaration.value = false;
 };
