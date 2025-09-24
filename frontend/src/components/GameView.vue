@@ -69,7 +69,7 @@
 
         <!-- Cartes -->
         <div class="flex space-x-1 justify-center">
-          <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="index">
+          <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="`${player.id}-${index}-${gameStore.room?.gameState?.currentRound || 1}`">
             <WireCard
               :is-cut="isWireCut(player.id, index)"
               :card-type="getWireType(player.id, index)"
@@ -201,6 +201,9 @@ watch(() => gameStore.playerWireCards.length, (newLength) => {
   if (newLength > 0 && newLength !== lastCardsLength.value) {
     lastCardsLength.value = newLength;
 
+    // RESET COMPLET des déclarations à chaque nouvelle distribution
+    playerDeclarations.value = {};
+
     // Si c'est la première fois qu'on reçoit des cartes et qu'on n'a pas encore montré le décompte
     if (!hasShownInitialCountdown.value && gameStore.room?.state === 'in_game') {
       hasShownInitialCountdown.value = true;
@@ -234,10 +237,23 @@ const hideCountdown = () => {
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
-  // Sauvegarder la déclaration du joueur
+  // Sauvegarder la déclaration du joueur LOCALEMENT pour tous (hack temporaire)
   playerDeclarations.value[gameStore.playerId] = declaration;
-  // Sauvegarder dans localStorage pour partager avec autres joueurs
+
+  // Sauvegarder dans localStorage pour partager avec autres joueurs (même si imparfait)
   saveDeclarations();
+
+  // Pour les autres joueurs, simuler des déclarations aléatoires basées sur leur rôle (debug temporaire)
+  gameStore.room?.players.forEach(player => {
+    if (player.id !== gameStore.playerId && !playerDeclarations.value[player.id]) {
+      // Déclaration factice pour test
+      playerDeclarations.value[player.id] = {
+        safeWires: Math.floor(Math.random() * 3) + 1,
+        hasBomb: Math.random() > 0.7
+      };
+    }
+  });
+
   showDeclaration.value = false;
 };
 

@@ -261,6 +261,16 @@ export const useGameStore = defineStore('game', () => {
     }
   };
 
+  const sendDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
+    if (room.value) {
+      socketService.emit('player_declaration', {
+        roomId: room.value.id,
+        playerId: playerId.value,
+        declaration,
+      });
+    }
+  };
+
   const sendChatMessage = (message: string) => {
     if (room.value) {
       socketService.emit('send_chat', {
@@ -363,6 +373,7 @@ export const useGameStore = defineStore('game', () => {
     joinRoom,
     startGame,
     cutWire,
+    sendDeclaration,
     sendChatMessage,
     kickPlayer,
     leaveRoom,
