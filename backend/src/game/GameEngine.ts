@@ -10,15 +10,9 @@ import {
   WireCutResult,
 } from '../types/game.types';
 import { config } from '../config';
-import { SocketService } from '../services/socket.service';
 
 export class GameEngine {
   private rooms: Map<string, Room> = new Map();
-  private socketService: SocketService;
-
-  constructor(socketService: SocketService) {
-    this.socketService = socketService;
-  }
 
   generateRoomId(): string {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -321,10 +315,8 @@ export class GameEngine {
       // Check if round should end (revealed = player count)
       const playerCount = room.players.size;
       if (gameState.cardsRevealedThisRound >= playerCount) {
-        // Round ends - wait 5 seconds before redistributing cards (for client-side analysis timer)
-        console.log('Round complete, waiting 5 seconds before redistribution...');
+        // Round ends - wait 5 seconds then redistribute cards
         setTimeout(() => {
-          console.log('Redistributing cards after first 5s timer...');
           const canContinue = this.redistributeCards(room);
           if (!canContinue) {
             // Not enough cards to continue - evil wins
@@ -332,40 +324,8 @@ export class GameEngine {
             winner = 'evil';
             room.state = 'finished';
             gameState.winner = winner;
-            // Emit game over event
-            this.socketService.emitToRoom(roomId, 'game_over', {
-              winnerTeam: winner,
-              players: Array.from(room.players.values()).map(p => ({
-                id: p.id,
-                name: p.displayName,
-                role: p.role
-              }))
-            });
-          } else {
-            // Continue with new round - send new cards
-            this.socketService.emitToRoom(roomId, 'players_update', {
-              players: Array.from(room.players.values()).map(p => ({
-                id: p.id,
-                displayName: p.displayName,
-                isConnected: p.isConnected,
-                isMaster: p.isMaster,
-                wireCards: p.wireCards
-              }))
-            });
           }
-        }, 5000); // 5 seconds delay - matches client first timer
-
-        // Return result but don't process the round end immediately
-        return {
-          cutterId,
-          targetId,
-          wireIndex,
-          cardType,
-          defusesFound: gameState.defusesFound,
-          bombFound: gameState.bombFound,
-          gameOver: false,
-          winner: undefined,
-        };
+        }, 5000); // 5 seconds delay for client timers
       } else {
         // Continue round - targeted player becomes active
         const targetPlayerIndex = gameState.turnOrder.indexOf(targetId);
@@ -421,4 +381,4 @@ export class GameEngine {
   }
 }
 
-// GameEngine will be instantiated in socket.service.ts with proper dependency injection
+export const gameEngine = new GameEngine();
