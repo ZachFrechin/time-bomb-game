@@ -24,6 +24,7 @@ export const useGameStore = defineStore('game', () => {
   const winner = ref<'good' | 'evil' | null>(null);
   const allPlayersWithRoles = ref<Array<{ id: string; name: string; role: RoleType }>>([]);
   const socketListenersSetup = ref(false);
+  const playerDeclarations = ref<Record<string, { safeWires: number; hasBomb: boolean }>>({});
 
   const isMyTurn = computed(() => {
     return currentTurnPlayerId.value === playerId.value;
@@ -141,6 +142,16 @@ export const useGameStore = defineStore('game', () => {
       chatMessages.value.push(data);
       if (chatMessages.value.length > 100) {
         chatMessages.value.shift();
+      }
+
+      // Traiter les déclarations qui arrivent via chat
+      if (data.message.startsWith('DECLARATION:')) {
+        try {
+          const declarationData = JSON.parse(data.message.replace('DECLARATION:', ''));
+          playerDeclarations.value[declarationData.playerId] = declarationData.declaration;
+        } catch (e) {
+          console.error('Error parsing declaration:', e);
+        }
       }
     });
 
@@ -261,13 +272,17 @@ export const useGameStore = defineStore('game', () => {
     }
   };
 
-  const sendDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
+  const saveDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
+    // Sauvegarder localement
+    playerDeclarations.value[playerId.value] = declaration;
+
+    // Envoyer aux autres joueurs via chat
     if (room.value) {
-      socketService.emit('player_declaration', {
-        roomId: room.value.id,
+      sendChatMessage(`DECLARATION:${JSON.stringify({
         playerId: playerId.value,
-        declaration,
-      });
+        playerName: playerName.value,
+        declaration
+      })}`);
     }
   };
 
@@ -318,13 +333,8 @@ export const useGameStore = defineStore('game', () => {
         });
       }
 
-      // Clear declarations from localStorage
-      const declarationsKey = `declarations_${room.value.id}_round_*`;
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith(`declarations_${room.value.id}_`)) {
-          localStorage.removeItem(key);
-        }
-      });
+      // Clear declarations
+      playerDeclarations.value = {};
 
       // Send restart game request to server
       socketService.emit('start_game', {
@@ -348,6 +358,7 @@ export const useGameStore = defineStore('game', () => {
     gameOver.value = false;
     winner.value = null;
     allPlayersWithRoles.value = [];
+    playerDeclarations.value = {};
     socketListenersSetup.value = false;
     socketService.disconnect();
   };
@@ -373,11 +384,12 @@ export const useGameStore = defineStore('game', () => {
     joinRoom,
     startGame,
     cutWire,
-    sendDeclaration,
+    saveDeclaration,
     sendChatMessage,
     kickPlayer,
     leaveRoom,
     restartGame,
     reset,
+    playerDeclarations,
   };
 });

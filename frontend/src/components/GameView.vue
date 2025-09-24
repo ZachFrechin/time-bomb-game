@@ -48,13 +48,13 @@
             <span class="text-sm font-semibold truncate">{{ player.displayName }}</span>
 
             <!-- Tags déclarations bien visibles à côté du nom -->
-            <div v-if="playerDeclarations[player.id]" class="flex space-x-1 flex-shrink-0">
+            <div v-if="gameStore.playerDeclarations[player.id]" class="flex space-x-1 flex-shrink-0">
               <!-- Badge fils sûrs avec emojis répétés -->
-              <span v-if="playerDeclarations[player.id].safeWires > 0" class="text-sm bg-indigo-700 px-2 py-1 rounded font-bold border-2 border-indigo-500">
-                {{ Array(playerDeclarations[player.id].safeWires).fill('🔷').join(' ') }}
+              <span v-if="gameStore.playerDeclarations[player.id].safeWires > 0" class="text-sm bg-indigo-700 px-2 py-1 rounded font-bold border-2 border-indigo-500">
+                {{ Array(gameStore.playerDeclarations[player.id].safeWires).fill('🔷').join(' ') }}
               </span>
               <!-- Badge bombe si déclarée -->
-              <span v-if="playerDeclarations[player.id].hasBomb" class="text-sm bg-red-600 px-2 py-1 rounded font-bold animate-pulse border-2 border-red-400">
+              <span v-if="gameStore.playerDeclarations[player.id].hasBomb" class="text-sm bg-red-600 px-2 py-1 rounded font-bold animate-pulse border-2 border-red-400">
                 💣
               </span>
             </div>
@@ -82,7 +82,7 @@
     </div>
 
     <!-- Message d'attente de déclaration -->
-    <div v-if="gameStore.isMyTurn && !playerDeclarations[gameStore.playerId] && gameStore.room?.state === 'game'"
+    <div v-if="gameStore.isMyTurn && !gameStore.playerDeclarations[gameStore.playerId] && gameStore.room?.state === 'game'"
          class="fixed top-4 left-4 right-4 bg-orange-900/90 border border-orange-500 rounded p-3 text-center z-40">
       <div class="text-orange-300 font-bold text-sm">⚠️ Vous devez faire votre déclaration avant de jouer</div>
       <div class="text-orange-400 text-xs mt-1">Appuyez sur "Déclarer" pour commencer</div>
@@ -114,10 +114,6 @@ const gameStore = useGameStore();
 // État pour les modals
 const showDeclaration = ref(false);
 const showCountdown = ref(false);
-const playerDeclarations = ref<Record<string, { safeWires: number; hasBomb: boolean }>>({});
-
-// Les déclarations sont maintenant uniquement locales à ce client
-// (en attendant la synchronisation via Socket.IO)
 
 // Calculer les fils sûrs restants
 const safeWiresRemaining = computed(() => {
@@ -148,19 +144,9 @@ onMounted(() => {
   }
 });
 
-// Écouter les messages chat pour les déclarations
-watch(() => gameStore.chatMessages, (messages) => {
-  const latestMessage = messages[messages.length - 1];
-  if (latestMessage && latestMessage.message.startsWith('DECLARATION:')) {
-    try {
-      const declarationData = JSON.parse(latestMessage.message.replace('DECLARATION:', ''));
-      if (declarationData.playerId !== gameStore.playerId) {
-        playerDeclarations.value[declarationData.playerId] = declarationData.declaration;
-      }
-    } catch (e) {
-      console.error('Error parsing declaration:', e);
-    }
-  }
+// Debug: surveiller les changements des déclarations
+watch(() => gameStore.playerDeclarations, (newDeclarations) => {
+  console.log('Declaration changes:', newDeclarations);
 }, { deep: true });
 
 // Surveiller le début de partie pour le décompte
@@ -195,12 +181,7 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   }
 });
 
-// Réinitialiser les déclarations à chaque nouveau round
-watch(() => gameStore.room?.gameState?.currentRound, (newRound, oldRound) => {
-  if (newRound !== oldRound && newRound) {
-    playerDeclarations.value = {};
-  }
-});
+// Note: Les déclarations sont maintenant gérées dans le game store global
 
 const hideCountdown = () => {
   showCountdown.value = false;
@@ -209,23 +190,14 @@ const hideCountdown = () => {
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
-  // Sauvegarder la déclaration du joueur
-  playerDeclarations.value[gameStore.playerId] = declaration;
-
-  // Envoyer au serveur pour synchroniser avec tous les joueurs
-  if (gameStore.room) {
-    gameStore.sendChatMessage(`DECLARATION:${JSON.stringify({
-      playerId: gameStore.playerId,
-      playerName: gameStore.playerName,
-      declaration
-    })}`);
-  }
+  // Utiliser la fonction du store pour sauvegarder et synchroniser
+  gameStore.saveDeclaration(declaration);
 
   showDeclaration.value = false;
 };
 
 const canCutWire = (playerId: string) => {
-  const hasPlayerDeclared = playerDeclarations.value[gameStore.playerId] !== undefined;
+  const hasPlayerDeclared = gameStore.playerDeclarations[gameStore.playerId] !== undefined;
   return gameStore.isMyTurn && playerId !== gameStore.playerId && hasPlayerDeclared;
 };
 
