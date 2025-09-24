@@ -13,7 +13,7 @@ import {
 
 export class SocketService {
   private io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-  private this.gameEngine: GameEngine;
+  private gameEngine: GameEngine;
 
   constructor(server: Server) {
     this.io = new SocketIOServer(server, {
