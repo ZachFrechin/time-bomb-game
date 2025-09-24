@@ -324,6 +324,20 @@ export class GameEngine {
             winner = 'evil';
             room.state = 'finished';
             gameState.winner = winner;
+          } else {
+            // Send updated cards to clients
+            const { socketServiceInstance } = require('../services/socket.service');
+            if (socketServiceInstance?.getIO) {
+              socketServiceInstance.getIO().to(roomId).emit('players_update', {
+                players: Array.from(room.players.values()).map(p => ({
+                  id: p.id,
+                  displayName: p.displayName,
+                  isConnected: p.isConnected,
+                  isMaster: p.isMaster,
+                  wireCards: p.wireCards
+                }))
+              });
+            }
           }
         }, 5000); // 5 seconds delay for client timers
       } else {

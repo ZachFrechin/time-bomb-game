@@ -9,7 +9,10 @@ import { signToken } from './utils/jwt';
 
 const app = express();
 const server = createServer(app);
-new SocketService(server);
+const socketService = new SocketService(server);
+// Set the singleton instance
+const { socketServiceInstance } = require('./services/socket.service');
+require('./services/socket.service').socketServiceInstance = socketService;
 
 app.use(cors(config.cors));
 app.use(express.json());

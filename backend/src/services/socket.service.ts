@@ -355,5 +355,7 @@ export class SocketService {
   getIO() {
     return this.io;
   }
-
 }
+
+// Export singleton instance for use in GameEngine
+export let socketServiceInstance: SocketService | null = null;
