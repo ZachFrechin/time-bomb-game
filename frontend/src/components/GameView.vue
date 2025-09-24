@@ -264,20 +264,23 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
   if (reachedMax && hasPlayers && justReached) {
     console.log('🎯 END OF ROUND DETECTED! Starting countdown sequence...');
 
-    // Sauvegarder l'état actuel des cartes AVANT de démarrer les timers
-    frozenPlayerCards.value = [...gameStore.playerWireCards];
-    frozenOtherPlayersCards.value = gameStore.room?.players?.map(p => ({
-      ...p,
-      wireCards: p.wireCards ? [...p.wireCards] : undefined
-    })) || [];
+    // Attendre un tout petit peu pour que players_update arrive et mette à jour la dernière carte
+    setTimeout(() => {
+      // Sauvegarder l'état actuel des cartes APRÈS que la dernière carte soit mise à jour
+      frozenPlayerCards.value = [...gameStore.playerWireCards];
+      frozenOtherPlayersCards.value = gameStore.room?.players?.map(p => ({
+        ...p,
+        wireCards: p.wireCards ? [...p.wireCards] : undefined
+      })) || [];
 
-    // Démarrer immédiatement le timer sans délai
-    if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
-      console.log('✅ Starting pre-redistribution countdown for new round');
-      startPreRedistributionCountdown();
-    } else {
-      console.log('❌ Timer already running or declaration showing, skipping');
-    }
+      // Démarrer le timer
+      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
+        console.log('✅ Starting pre-redistribution countdown for new round');
+        startPreRedistributionCountdown();
+      } else {
+        console.log('❌ Timer already running or declaration showing, skipping');
+      }
+    }, 100); // Petit délai pour laisser le temps à players_update d'arriver
   } else {
     console.log('⏳ Not end of round yet, continuing...');
   }
