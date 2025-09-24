@@ -372,6 +372,15 @@ export class GameEngine {
                   });
                 }
               });
+
+              // Send player_turn event to indicate who plays next
+              const nextPlayerId = gameState.turnOrder[gameState.currentPlayerIndex];
+              const nextPlayer = room.players.get(nextPlayerId);
+              console.log('🎯 SERVER: Sending player_turn to:', nextPlayer?.displayName);
+              socketServiceInstance.getIO().to(roomId).emit('player_turn', {
+                playerId: nextPlayerId,
+                playerName: nextPlayer?.displayName || '',
+              });
             } else {
               console.log('❌ SERVER: socketServiceInstance not available');
             }
