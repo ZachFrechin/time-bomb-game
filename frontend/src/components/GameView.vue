@@ -98,7 +98,7 @@
 
         <!-- Cartes -->
         <div class="flex space-x-1 justify-center">
-          <div v-for="(wire, index) in (pendingNewCards ? lastCardsLength - 1 : (gameStore.room?.gameState?.wiresPerPlayer || 5))" :key="`${player.id}-${index}-${gameStore.room?.gameState?.currentRound || 1}-${pendingNewCards ? 'old' : 'new'}`">
+          <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="`${player.id}-${index}-${gameStore.room?.gameState?.currentRound || 1}`">
             <WireCard
               :is-cut="isWireCut(player.id, index)"
               :card-type="getWireType(player.id, index)"
@@ -171,7 +171,6 @@ const orderedPlayers = computed(() => {
 const currentRound = ref(gameStore.room?.gameState?.currentRound || 1);
 const lastCardsLength = ref(gameStore.playerWireCards.length);
 const hasShownInitialCountdown = ref(false);
-const pendingNewCards = ref(false);
 
 // Démarrer le décompte au montage si on est en jeu
 onMounted(() => {
@@ -220,30 +219,21 @@ watch(() => gameStore.room?.state, (newState) => {
 });
 
 // Surveiller les changements de cartes pour déclencher les déclarations
-watch(() => gameStore.playerWireCards, (newCards, oldCards) => {
-  if (newCards.length > 0) {
+watch(() => gameStore.playerWireCards.length, (newLength) => {
+  if (newLength > 0 && newLength !== lastCardsLength.value) {
+    lastCardsLength.value = newLength;
     // Si c'est la première fois qu'on reçoit des cartes et qu'on n'a pas encore montré le décompte
     if (!hasShownInitialCountdown.value && gameStore.room?.state === 'in_game') {
-      lastCardsLength.value = newCards.length;
       hasShownInitialCountdown.value = true;
       showCountdown.value = true;
-    } else if (oldCards.length > 0 && newCards.length !== lastCardsLength.value) {
-      // Nouvelles cartes reçues (redistribution)
-      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value) {
-        // Stocker les nouvelles cartes temporairement
-        pendingNewCards.value = true;
-        // Démarrer immédiatement le premier timer
-        startPreRedistributionCountdown();
-      }
     }
   }
-}, { immediate: true, deep: true });
+}, { immediate: true });
 
 // Surveiller le changement de round pour afficher l'écran de déclaration
 watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   if (newRound && newRound !== currentRound.value) {
     currentRound.value = newRound;
-    // Ne pas démarrer le timer ici, il sera déclenché par le watch des cartes
   }
 });
 
@@ -251,8 +241,12 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
 watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) => {
   const totalPlayers = gameStore.room?.players?.length || 0;
   if (cardsRevealed === totalPlayers && totalPlayers > 0) {
-    // Toutes les cartes ont été retournées
-    // Les nouvelles cartes vont arriver, le watch des cartes déclenchera le timer
+    // Toutes les cartes ont été retournées, démarrer le premier timer
+    setTimeout(() => {
+      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value) {
+        startPreRedistributionCountdown();
+      }
+    }, 1000); // Petit délai pour que l'utilisateur voit la dernière carte
   }
 });
 
@@ -338,16 +332,8 @@ const startPreRedistributionCountdown = () => {
       clearInterval(interval);
       showPreRedistributionCountdown.value = false;
 
-      // Si c'est une redistribution, appliquer les nouvelles cartes MAINTENANT (entre les deux timers)
-      if (pendingNewCards.value) {
-        lastCardsLength.value = gameStore.playerWireCards.length;
-        pendingNewCards.value = false;
-        // Démarrer le second timer de redistribution
-        startRedistributionCountdown();
-      } else {
-        // Premier round: pas de redistribution, juste afficher la déclaration
-        showDeclaration.value = true;
-      }
+      // Toujours démarrer le second timer
+      startRedistributionCountdown();
     }
   }, 1000);
 };
