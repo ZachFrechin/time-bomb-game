@@ -271,14 +271,13 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
       wireCards: p.wireCards ? [...p.wireCards] : undefined
     })) || [];
 
-    setTimeout(() => {
-      if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
-        console.log('✅ Starting pre-redistribution countdown for new round');
-        startPreRedistributionCountdown();
-      } else {
-        console.log('❌ Timer already running or declaration showing, skipping');
-      }
-    }, 1500);
+    // Démarrer immédiatement le timer sans délai
+    if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
+      console.log('✅ Starting pre-redistribution countdown for new round');
+      startPreRedistributionCountdown();
+    } else {
+      console.log('❌ Timer already running or declaration showing, skipping');
+    }
   } else {
     console.log('⏳ Not end of round yet, continuing...');
   }
@@ -377,8 +376,15 @@ const startPreRedistributionCountdown = () => {
       frozenPlayerCards.value = null;
       frozenOtherPlayersCards.value = null;
 
-      // Démarrer le second timer
-      startRedistributionCountdown();
+      // Démarrer le second timer seulement si c'est pas la première manche
+      const currentRound = gameStore.room?.gameState?.currentRound || 1;
+      if (currentRound > 1) {
+        startRedistributionCountdown();
+      } else {
+        // Première manche: montrer directement la déclaration
+        console.log('First round - showing declaration directly');
+        showDeclaration.value = true;
+      }
     }
   }, 1000);
 };

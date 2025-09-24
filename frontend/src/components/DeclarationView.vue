@@ -2,6 +2,14 @@
   <!-- Overlay semi-transparent compact centré -->
   <div class="fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50 p-2">
     <div class="card max-w-sm w-full mx-auto p-3 bg-gray-800 relative">
+      <!-- Encadré info en haut à gauche pour le rôle -->
+      <div class="absolute top-2 left-2 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs">
+        <div class="text-gray-400 mb-0.5">Votre rôle:</div>
+        <div class="font-bold" :class="gameStore.playerRole === 'good' ? 'text-blue-400' : 'text-red-400'">
+          {{ gameStore.playerRole === 'good' ? '🔷 Bon' : '💣 Méchant' }}
+        </div>
+      </div>
+
       <!-- Encadré info en haut à droite -->
       <div class="absolute top-2 right-2 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs">
         <div class="text-gray-400 mb-0.5">Vos cartes:</div>
