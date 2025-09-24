@@ -1,70 +1,73 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
-    <div class="card text-center p-8">
-      <h1 class="text-2xl sm:text-4xl font-bold mb-4 text-center"
+  <div class="flex flex-col h-full max-h-screen overflow-hidden">
+    <!-- Header compact avec résultat -->
+    <div class="card p-4 mb-2 flex-shrink-0">
+      <h1 class="text-lg sm:text-2xl font-bold text-center"
           :class="gameStore.winner === 'good' ? 'text-blue-400' : 'text-red-400'">
-        {{ gameStore.winner === 'good' ? '🕵️ Victoire des Détectives!' : '💀 Victoire des Saboteurs!' }}
+        {{ gameStore.winner === 'good' ? '🕵️ Détectives gagnent!' : '💀 Saboteurs gagnent!' }}
       </h1>
-
-      <p class="text-lg sm:text-xl mb-8 text-center">
-        {{ gameStore.winner === 'good'
-          ? 'Les détectives ont désamorcé la bombe avec succès!'
-          : 'Les saboteurs ont fait exploser la bombe!' }}
+      <p class="text-sm text-center mt-1 text-gray-400">
+        {{ gameStore.winner === 'good' ? 'Bombe désamorcée' : 'Bombe explosée' }}
       </p>
+    </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h2 class="text-2xl font-semibold mb-4 text-blue-400">🕵️ Détectives</h2>
-          <div class="space-y-2">
+    <!-- Zone scrollable pour les détails -->
+    <div class="flex-1 overflow-y-auto px-4 pb-2">
+      <!-- Équipes en une seule ligne sur mobile -->
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <div class="card p-3">
+          <h2 class="text-sm font-semibold mb-2 text-blue-400 text-center">🕵️ Détectives</h2>
+          <div class="space-y-1">
             <div v-for="player in goodPlayers" :key="player.id"
-                 class="p-3 bg-blue-900 rounded">
+                 class="px-2 py-1 bg-blue-900 rounded text-xs text-center">
               {{ player.name }}
             </div>
           </div>
         </div>
 
-        <div>
-          <h2 class="text-2xl font-semibold mb-4 text-red-400">💀 Saboteurs</h2>
-          <div class="space-y-2">
+        <div class="card p-3">
+          <h2 class="text-sm font-semibold mb-2 text-red-400 text-center">💀 Saboteurs</h2>
+          <div class="space-y-1">
             <div v-for="player in evilPlayers" :key="player.id"
-                 class="p-3 bg-red-900 rounded">
+                 class="px-2 py-1 bg-red-900 rounded text-xs text-center">
               {{ player.name }}
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="card text-center">
-      <p class="mb-4">Statistiques de la partie:</p>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-gray-400">Fils sûrs trouvés</p>
-          <p class="text-2xl font-bold text-blue-400">
-            {{ gameStore.room?.gameState?.defusesFound || 0 }}
-          </p>
-        </div>
-        <div>
-          <p class="text-gray-400">Fils sûrs nécessaires</p>
-          <p class="text-2xl font-bold">
-            {{ gameStore.room?.gameState?.totalDefusesNeeded || 0 }}
-          </p>
+      <!-- Stats compactes -->
+      <div class="card p-3 mb-4">
+        <div class="grid grid-cols-2 gap-4 text-center">
+          <div>
+            <p class="text-xs text-gray-400">Trouvés</p>
+            <p class="text-lg font-bold text-blue-400">
+              {{ gameStore.room?.gameState?.defusesFound || 0 }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Nécessaires</p>
+            <p class="text-lg font-bold">
+              {{ gameStore.room?.gameState?.totalDefusesNeeded || 0 }}
+            </p>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="card text-center space-y-4">
-      <div v-if="gameStore.isMaster" class="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
-        <button @click="restartGame" class="btn-primary text-base sm:text-lg py-2 sm:py-3 px-4 sm:px-8 w-full sm:w-auto">
-          Relancer la partie
+    <!-- Boutons fixes en bas -->
+    <div class="card p-3 flex-shrink-0">
+      <div v-if="gameStore.isMaster" class="flex flex-col space-y-2">
+        <button @click="restartGame" class="btn-primary py-3 px-4 text-base font-semibold">
+          🔄 Relancer la partie
         </button>
-        <button @click="newGame" class="btn-secondary text-base sm:text-lg py-2 sm:py-3 px-4 sm:px-8 w-full sm:w-auto">
-          Retour au menu
+        <button @click="newGame" class="btn-secondary py-3 px-4 text-base">
+          🏠 Retour au menu
         </button>
       </div>
-      <div v-else class="flex justify-center">
-        <button @click="newGame" class="btn-secondary text-base sm:text-lg py-2 sm:py-3 px-4 sm:px-8 w-full sm:w-auto">
-          Retour au menu
+      <div v-else>
+        <button @click="newGame" class="btn-secondary w-full py-3 px-4 text-base">
+          🏠 Retour au menu
         </button>
       </div>
     </div>
