@@ -1,7 +1,16 @@
 <template>
   <!-- Overlay semi-transparent compact centré -->
   <div class="fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50 p-2">
-    <div class="card max-w-sm w-full mx-auto p-3 bg-gray-800">
+    <div class="card max-w-sm w-full mx-auto p-3 bg-gray-800 relative">
+      <!-- Encadré info en haut à droite -->
+      <div class="absolute top-2 right-2 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs">
+        <div class="text-gray-400 mb-0.5">Vos cartes:</div>
+        <div class="flex items-center space-x-1">
+          <span class="text-blue-400 font-bold">{{ actualSafeWires }}🔷</span>
+          <span v-if="actualHasBomb" class="text-red-400 font-bold">💣</span>
+        </div>
+      </div>
+
       <h2 class="text-sm font-bold text-center mb-2">🔍 Déclaration</h2>
 
       <div class="space-y-2">
@@ -87,6 +96,15 @@ const maxSafeWires = computed(() => {
   const remaining = gameStore.room?.gameState?.totalDefusesNeeded || 0;
   const found = gameStore.room?.gameState?.defusesFound || 0;
   return Math.max(1, remaining - found + 1); // +1 pour inclure 0
+});
+
+// Compter les vraies cartes du joueur
+const actualSafeWires = computed(() => {
+  return gameStore.playerWireCards.filter(card => card.type === 'safe').length;
+});
+
+const actualHasBomb = computed(() => {
+  return gameStore.playerWireCards.some(card => card.type === 'bomb');
 });
 
 const submitDeclaration = () => {

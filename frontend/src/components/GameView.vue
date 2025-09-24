@@ -15,8 +15,12 @@
         </div>
 
         <div class="text-center flex-1">
+          <!-- Timer avant redistribution -->
+          <div v-if="showPreRedistributionCountdown" class="text-2xl font-bold text-yellow-400 animate-pulse">
+            {{ preRedistributionCountdown }}
+          </div>
           <!-- Timer de redistribution -->
-          <div v-if="showRedistributionCountdown" class="text-2xl font-bold text-orange-400 animate-pulse">
+          <div v-else-if="showRedistributionCountdown" class="text-2xl font-bold text-orange-400 animate-pulse">
             {{ redistributionCountdown }}
           </div>
           <!-- Timer de fin de partie -->
@@ -27,7 +31,8 @@
           <div v-else class="text-2xl font-bold text-red-400 animate-pulse">
             {{ safeWiresRemaining }} 🔷
           </div>
-          <div v-if="!showRedistributionCountdown && !showEndGameCountdown" class="text-xs text-gray-400">fils sûrs restants</div>
+          <div v-if="!showPreRedistributionCountdown && !showRedistributionCountdown && !showEndGameCountdown" class="text-xs text-gray-400">fils sûrs restants</div>
+          <div v-else-if="showPreRedistributionCountdown" class="text-xs text-gray-400">analyse...</div>
           <div v-else-if="showRedistributionCountdown" class="text-xs text-gray-400">redistribution...</div>
           <div v-else class="text-xs text-gray-400">💥 BOOM!</div>
         </div>
@@ -143,6 +148,8 @@ const showRedistributionCountdown = ref(false);
 const showEndGameCountdown = ref(false);
 const redistributionCountdown = ref(5);
 const endGameCountdown = ref(3);
+const showPreRedistributionCountdown = ref(false);
+const preRedistributionCountdown = ref(5);
 
 // Calculer les fils sûrs restants
 const safeWiresRemaining = computed(() => {
@@ -220,12 +227,10 @@ watch(() => gameStore.playerWireCards.length, (newLength) => {
       lastCardsLength.value = newLength;
       hasShownInitialCountdown.value = true;
       showCountdown.value = true;
-    } else if (!showCountdown.value && !pendingNewCards.value) {
+    } else if (!showCountdown.value && !pendingNewCards.value && !showPreRedistributionCountdown.value) {
       // Sinon, marquer qu'on a reçu de nouvelles cartes mais ne pas les afficher encore
       pendingNewCards.value = true;
-      // Ne pas mettre à jour lastCardsLength encore
-      // Démarrer le timer de redistribution
-      startRedistributionCountdown();
+      // Les nouvelles cartes seront appliquées après le premier timer de 5s
     }
   }
 }, { immediate: true });
@@ -235,8 +240,8 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
   if (newRound && newRound !== currentRound.value) {
     currentRound.value = newRound;
 
-    // Démarrer le timer de redistribution
-    startRedistributionCountdown();
+    // Démarrer le timer avant redistribution
+    startPreRedistributionCountdown();
   }
 });
 
@@ -244,9 +249,9 @@ watch(() => gameStore.room?.gameState?.currentRound, (newRound) => {
 watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) => {
   const totalPlayers = gameStore.room?.players?.length || 0;
   if (cardsRevealed === totalPlayers && totalPlayers > 0) {
-    // Toutes les cartes ont été retournées, préparer la redistribution
+    // Toutes les cartes ont été retournées, démarrer le premier timer
     setTimeout(() => {
-      startRedistributionCountdown();
+      startPreRedistributionCountdown();
     }, 1000); // Petit délai pour que l'utilisateur voit la dernière carte
   }
 });
@@ -255,8 +260,8 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed) =
 
 const hideCountdown = () => {
   showCountdown.value = false;
-  // Démarrer le timer de redistribution au lieu d'afficher directement
-  startRedistributionCountdown();
+  // Afficher directement la déclaration pour le premier round
+  showDeclaration.value = true;
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
@@ -322,9 +327,36 @@ const getLastCutPlayerName = () => {
   return player?.displayName || 'Inconnu';
 };
 
+// Premier timer: 5 secondes d'analyse avant redistribution
+const startPreRedistributionCountdown = () => {
+  showPreRedistributionCountdown.value = true;
+  preRedistributionCountdown.value = 5;
+
+  const interval = setInterval(() => {
+    preRedistributionCountdown.value--;
+    if (preRedistributionCountdown.value <= 0) {
+      clearInterval(interval);
+      showPreRedistributionCountdown.value = false;
+
+      // Maintenant appliquer les nouvelles cartes si elles sont en attente
+      if (pendingNewCards.value) {
+        lastCardsLength.value = gameStore.playerWireCards.length;
+        pendingNewCards.value = false;
+      }
+
+      // Démarrer le second timer de redistribution
+      startRedistributionCountdown();
+    }
+  }, 1000);
+};
+
+// Second timer: 5 secondes pendant la redistribution
 const startRedistributionCountdown = () => {
   showRedistributionCountdown.value = true;
   redistributionCountdown.value = 5;
+
+  // Reset des déclarations au début de la redistribution
+  gameStore.playerDeclarations = {};
 
   const interval = setInterval(() => {
     redistributionCountdown.value--;
@@ -332,16 +364,7 @@ const startRedistributionCountdown = () => {
       clearInterval(interval);
       showRedistributionCountdown.value = false;
 
-      // Maintenant que le timer est fini, appliquer les nouvelles cartes
-      if (pendingNewCards.value) {
-        lastCardsLength.value = gameStore.playerWireCards.length;
-        pendingNewCards.value = false;
-      }
-
-      // Reset des déclarations
-      gameStore.playerDeclarations = {};
-
-      // Afficher l'écran de déclaration après le timer
+      // Afficher l'écran de déclaration après le second timer
       showDeclaration.value = true;
     }
   }, 1000);
