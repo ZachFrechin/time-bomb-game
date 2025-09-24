@@ -254,14 +254,14 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
   console.log('CARDS WATCH:', cardsRevealed, 'old:', oldValue, 'total:', totalPlayers);
 
   // Conditions pour déclencher
-  const wasAtMax = oldValue === totalPlayers;
+  const wasNearMax = oldValue >= totalPlayers - 1; // 3 ou plus pour 4 joueurs
   const nowAtZero = cardsRevealed === 0;
   const hasPlayers = totalPlayers > 0;
 
-  console.log('Detection conditions: wasAtMax=', wasAtMax, 'nowAtZero=', nowAtZero, 'hasPlayers=', hasPlayers);
+  console.log('Detection conditions: wasNearMax=', wasNearMax, '(oldValue>=', totalPlayers-1, ') nowAtZero=', nowAtZero, 'hasPlayers=', hasPlayers);
 
-  // SEULE détection valide: on était au maximum (toutes cartes révélées) et on redescend à 0 (nouvelle manche)
-  if (wasAtMax && nowAtZero && hasPlayers) {
+  // Détection: on était près du maximum et on redescend à 0 (nouvelle manche)
+  if (wasNearMax && nowAtZero && hasPlayers) {
     console.log('🎯 END OF ROUND DETECTED! Starting countdown sequence...');
 
     // Sauvegarder l'état actuel des cartes AVANT de démarrer les timers
