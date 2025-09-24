@@ -315,15 +315,42 @@ export class GameEngine {
       // Check if round should end (revealed = player count)
       const playerCount = room.players.size;
       if (gameState.cardsRevealedThisRound >= playerCount) {
-        // Round ends - redistribute cards
-        const canContinue = this.redistributeCards(room);
-        if (!canContinue) {
-          // Not enough cards to continue - evil wins
-          gameOver = true;
-          winner = 'evil';
-          room.state = 'finished';
-          gameState.winner = winner;
-        }
+        // Round ends - wait 10 seconds before redistributing cards (for client-side timers)
+        console.log('Round complete, waiting 10 seconds before redistribution...');
+        setTimeout(() => {
+          console.log('Redistributing cards after timer delay...');
+          const canContinue = this.redistributeCards(room);
+          if (!canContinue) {
+            // Not enough cards to continue - evil wins
+            gameOver = true;
+            winner = 'evil';
+            room.state = 'finished';
+            gameState.winner = winner;
+            // Emit game over event
+            require('../services/socket.service').emitToRoom(roomId, 'game_over', {
+              winnerTeam: winner,
+              players: Array.from(room.players.values()).map(p => ({
+                id: p.id,
+                name: p.displayName,
+                role: p.role
+              }))
+            });
+          } else {
+            // Continue with new round
+            require('../services/socket.service').emitToRoom(roomId, 'players_update', {
+              players: Array.from(room.players.values()).map(p => ({
+                id: p.id,
+                displayName: p.displayName,
+                isConnected: p.isConnected,
+                isMaster: p.isMaster,
+                wireCards: p.wireCards
+              }))
+            });
+          }
+        }, 10000); // 10 seconds delay
+
+        // Don't continue processing this round
+        return { gameOver: false, winner: null };
       } else {
         // Continue round - targeted player becomes active
         const targetPlayerIndex = gameState.turnOrder.indexOf(targetId);
