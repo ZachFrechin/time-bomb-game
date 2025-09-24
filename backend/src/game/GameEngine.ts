@@ -349,8 +349,17 @@ export class GameEngine {
           }
         }, 5000); // 5 seconds delay - matches client first timer
 
-        // Don't continue processing this round
-        return { gameOver: false, winner: undefined };
+        // Return result but don't process the round end immediately
+        return {
+          cutterId,
+          targetId,
+          wireIndex,
+          cardType,
+          defusesFound: gameState.defusesFound,
+          bombFound: gameState.bombFound,
+          gameOver: false,
+          winner: undefined,
+        };
       } else {
         // Continue round - targeted player becomes active
         const targetPlayerIndex = gameState.turnOrder.indexOf(targetId);
