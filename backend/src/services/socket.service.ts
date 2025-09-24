@@ -2,7 +2,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { Server } from 'http';
 import { signToken } from '../utils/jwt';
 import { config } from '../config';
-import { gameEngine } from '../game/GameEngine';
+import { GameEngine } from '../game/GameEngine';
 import { redisService } from './redis.service';
 import {
   ClientToServerEvents,
@@ -13,6 +13,7 @@ import {
 
 export class SocketService {
   private io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+  private this.gameEngine: GameEngine;
 
   constructor(server: Server) {
     this.io = new SocketIOServer(server, {
@@ -22,6 +23,7 @@ export class SocketService {
       },
     });
 
+    this.this.gameEngine = new GameEngine(this);
     this.setupEventHandlers();
   }
 
@@ -31,7 +33,7 @@ export class SocketService {
 
       socket.on('create_room', async (data, callback) => {
         try {
-          const room = gameEngine.createRoom(data.displayName, data.options);
+          const room = this.gameEngine.createRoom(data.displayName, data.options);
           const playerId = Array.from(room.players.keys())[0];
           const player = room.players.get(playerId)!;
           player.socketId = socket.id;
@@ -61,7 +63,7 @@ export class SocketService {
 
       socket.on('join_room', async (data, callback) => {
         try {
-          let room = gameEngine.getRoom(data.roomId);
+          let room = this.gameEngine.getRoom(data.roomId);
 
           if (!room) {
             room = await redisService.getRoom(data.roomId) || undefined;
@@ -71,7 +73,7 @@ export class SocketService {
             }
           }
 
-          const result = gameEngine.joinRoom(data.roomId, data.displayName, data.avatar);
+          const result = this.gameEngine.joinRoom(data.roomId, data.displayName, data.avatar);
 
           if (!result) {
             callback({ success: false, error: 'Cannot join room' });
@@ -112,10 +114,10 @@ export class SocketService {
 
       socket.on('start_game', async (data) => {
         try {
-          const room = gameEngine.getRoom(data.roomId);
+          const room = this.gameEngine.getRoom(data.roomId);
           if (!room) return;
 
-          const success = gameEngine.startGame(data.roomId);
+          const success = this.gameEngine.startGame(data.roomId);
 
           if (success && room.gameState) {
             await redisService.saveRoom(room);
@@ -157,13 +159,13 @@ export class SocketService {
 
       socket.on('cut_wire', async (data) => {
         try {
-          const room = gameEngine.getRoom(data.roomId);
+          const room = this.gameEngine.getRoom(data.roomId);
           if (!room) return;
 
           const playerId = socket.data.playerId;
           if (!playerId) return;
 
-          const result = gameEngine.cutWire(
+          const result = this.gameEngine.cutWire(
             data.roomId,
             playerId,
             data.targetPlayerId,
@@ -261,10 +263,10 @@ export class SocketService {
 
       socket.on('kick_player', async (data) => {
         try {
-          const success = gameEngine.kickPlayer(data.roomId, data.playerId);
+          const success = this.gameEngine.kickPlayer(data.roomId, data.playerId);
 
           if (success) {
-            const room = gameEngine.getRoom(data.roomId);
+            const room = this.gameEngine.getRoom(data.roomId);
             if (room) {
               await redisService.saveRoom(room);
 
@@ -289,13 +291,13 @@ export class SocketService {
 
       socket.on('leave_room', async (data) => {
         try {
-          const room = gameEngine.getRoom(data.roomId);
+          const room = this.gameEngine.getRoom(data.roomId);
           if (room && socket.data.playerId) {
             room.players.delete(socket.data.playerId);
             socket.leave(data.roomId);
 
             if (room.players.size === 0) {
-              gameEngine.removeRoom(data.roomId);
+              this.gameEngine.removeRoom(data.roomId);
               await redisService.deleteRoom(data.roomId);
             } else {
               await redisService.saveRoom(room);
@@ -311,7 +313,7 @@ export class SocketService {
         console.log(`Client disconnected: ${socket.id}`);
 
         if (socket.data.roomId && socket.data.playerId) {
-          const room = gameEngine.getRoom(socket.data.roomId);
+          const room = this.gameEngine.getRoom(socket.data.roomId);
           if (room) {
             const player = room.players.get(socket.data.playerId);
             if (player) {
@@ -330,7 +332,7 @@ export class SocketService {
   }
 
   private broadcastLobbyUpdate(roomId: string) {
-    const room = gameEngine.getRoom(roomId);
+    const room = this.gameEngine.getRoom(roomId);
     if (!room) return;
 
     const players = Array.from(room.players.values()).map(p => ({
@@ -354,5 +356,9 @@ export class SocketService {
 
   getIO() {
     return this.io;
+  }
+
+  getGameEngine() {
+    return this.gameEngine;
   }
 }

@@ -4,12 +4,12 @@ import cors from 'cors';
 import { config } from './config';
 import { SocketService } from './services/socket.service';
 import { redisService } from './services/redis.service';
-import { gameEngine } from './game/GameEngine';
 import { signToken } from './utils/jwt';
 
 const app = express();
 const server = createServer(app);
-new SocketService(server);
+const socketService = new SocketService(server);
+const gameEngine = socketService.getGameEngine();
 
 app.use(cors(config.cors));
 app.use(express.json());

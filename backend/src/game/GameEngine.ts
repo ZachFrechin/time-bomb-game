@@ -10,9 +10,15 @@ import {
   WireCutResult,
 } from '../types/game.types';
 import { config } from '../config';
+import { SocketService } from '../services/socket.service';
 
 export class GameEngine {
   private rooms: Map<string, Room> = new Map();
+  private socketService: SocketService;
+
+  constructor(socketService: SocketService) {
+    this.socketService = socketService;
+  }
 
   generateRoomId(): string {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -327,7 +333,7 @@ export class GameEngine {
             room.state = 'finished';
             gameState.winner = winner;
             // Emit game over event
-            require('../services/socket.service').emitToRoom(roomId, 'game_over', {
+            this.socketService.emitToRoom(roomId, 'game_over', {
               winnerTeam: winner,
               players: Array.from(room.players.values()).map(p => ({
                 id: p.id,
@@ -337,7 +343,7 @@ export class GameEngine {
             });
           } else {
             // Continue with new round - send new cards
-            require('../services/socket.service').emitToRoom(roomId, 'players_update', {
+            this.socketService.emitToRoom(roomId, 'players_update', {
               players: Array.from(room.players.values()).map(p => ({
                 id: p.id,
                 displayName: p.displayName,
@@ -415,4 +421,4 @@ export class GameEngine {
   }
 }
 
-export const gameEngine = new GameEngine();
+// GameEngine will be instantiated in socket.service.ts with proper dependency injection
