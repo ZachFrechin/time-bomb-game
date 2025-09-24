@@ -63,6 +63,13 @@ export const useGameStore = defineStore('game', () => {
 
     socketService.on('game_started', (data) => {
       if (room.value) {
+        // Clean up any previous game state
+        if (room.value.players) {
+          room.value.players.forEach(player => {
+            player.wireCards = undefined;
+          });
+        }
+
         room.value.state = 'in_game';
         if (!room.value.gameState) {
           room.value.gameState = {
@@ -281,6 +288,21 @@ export const useGameStore = defineStore('game', () => {
       gameOver.value = false;
       winner.value = null;
       allPlayersWithRoles.value = [];
+
+      // Reset wire cards for all players
+      if (room.value.players) {
+        room.value.players.forEach(player => {
+          player.wireCards = undefined;
+        });
+      }
+
+      // Clear declarations from localStorage
+      const declarationsKey = `declarations_${room.value.id}_round_*`;
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(`declarations_${room.value.id}_`)) {
+          localStorage.removeItem(key);
+        }
+      });
 
       // Send restart game request to server
       socketService.emit('start_game', {
