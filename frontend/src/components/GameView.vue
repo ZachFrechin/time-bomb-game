@@ -72,7 +72,7 @@
             <div class="flex items-center space-x-2">
               <div :class="[
                 'w-2 h-2 rounded-full flex-shrink-0',
-                player.isConnected ? 'bg-green-500' : 'bg-gray-500'
+                gameStore.isPlayerConnected(player.id) ? 'bg-green-500' : 'bg-gray-500'
               ]"></div>
               <span class="text-sm font-semibold">{{ player.displayName }}</span>
             </div>
@@ -417,6 +417,17 @@ const getWireType = (playerId: string, wireIndex: number) => {
   const players = frozenOtherPlayersCards.value || gameStore.room?.players || [];
   const player = players.find(p => p.id === playerId);
   const wire = player?.wireCards?.[wireIndex];
+
+  // Debug disconnection issue
+  if (wire?.isCut && !wire.type) {
+    console.error('Cut card missing type!', {
+      playerId,
+      wireIndex,
+      wire,
+      player: player?.displayName,
+      isConnected: player?.isConnected
+    });
+  }
 
   // Always return the type for cut cards, regardless of connection status
   if (wire?.isCut) {

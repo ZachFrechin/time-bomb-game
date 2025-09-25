@@ -26,6 +26,7 @@ export const useGameStore = defineStore('game', () => {
   const socketListenersSetup = ref(false);
   const playerDeclarations = ref<Record<string, { safeWires: number; hasBomb: boolean }>>({});
   const preventGameOverDisplay = ref(false);
+  const disconnectedPlayers = ref<Set<string>>(new Set());
 
   const isMyTurn = computed(() => {
     return currentTurnPlayerId.value === playerId.value;
@@ -42,6 +43,10 @@ export const useGameStore = defineStore('game', () => {
   const otherPlayers = computed(() => {
     return room.value?.players.filter(p => p.id !== playerId.value) || [];
   });
+
+  const isPlayerConnected = (playerId: string) => {
+    return !disconnectedPlayers.value.has(playerId);
+  };
 
   const handleReconnection = async () => {
     console.log('Attempting to restore game state after reconnection...');
@@ -119,6 +124,14 @@ export const useGameStore = defineStore('game', () => {
 
     socketService.on('lobby_update', (data) => {
       if (room.value) {
+        // Update disconnected players based on isConnected status
+        disconnectedPlayers.value.clear();
+        data.players.forEach(p => {
+          if (!p.isConnected) {
+            disconnectedPlayers.value.add(p.id);
+          }
+        });
+
         room.value.players = data.players;
         room.value.options = data.options;
         room.value.masterId = data.masterId;
@@ -259,27 +272,15 @@ export const useGameStore = defineStore('game', () => {
     });
 
     socketService.on('player_disconnected', (data) => {
-      if (room.value?.players) {
-        const playerIndex = room.value.players.findIndex(p => p.id === data.playerId);
-        if (playerIndex !== -1) {
-          // Use Vue's reactivity system properly - create a new object
-          const player = room.value.players[playerIndex];
-          room.value.players[playerIndex] = {
-            ...player,
-            isConnected: false,
-            // Explicitly preserve wire cards with their types
-            wireCards: player.wireCards ? [...player.wireCards] : undefined
-          };
-          console.log('Player disconnected, preserved cards:', room.value.players[playerIndex].wireCards);
-        }
-      }
+      // Track disconnected players separately to avoid modifying the player objects
+      disconnectedPlayers.value.add(data.playerId);
+      console.log('Player disconnected (tracked separately):', data.playerId);
     });
 
     socketService.on('player_reconnected', (data) => {
-      const player = room.value?.players.find(p => p.id === data.playerId);
-      if (player) {
-        player.isConnected = true;
-      }
+      // Remove from disconnected set
+      disconnectedPlayers.value.delete(data.playerId);
+      console.log('Player reconnected (removed from disconnected set):', data.playerId);
     });
 
     socketService.on('game_state_update', (data) => {
@@ -304,6 +305,14 @@ export const useGameStore = defineStore('game', () => {
       if (data.room) {
         // Clear declarations first, they will be sent by server
         playerDeclarations.value = {};
+
+        // Initialize disconnected players based on isConnected status
+        disconnectedPlayers.value.clear();
+        data.room.players.forEach(p => {
+          if (!p.isConnected) {
+            disconnectedPlayers.value.add(p.id);
+          }
+        });
 
         room.value = data.room;
         playerId.value = data.playerId;
@@ -610,5 +619,7 @@ export const useGameStore = defineStore('game', () => {
     reset,
     playerDeclarations,
     preventGameOverDisplay,
+    isPlayerConnected,
+    disconnectedPlayers,
   };
 });
