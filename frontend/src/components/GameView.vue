@@ -202,14 +202,19 @@ onMounted(() => {
       }
     }
 
-    // Vérifier si le joueur a déjà fait sa déclaration
-    const hasPlayerDeclared = gameStore.playerDeclarations && gameStore.playerDeclarations[gameStore.playerId];
+    // Attendre un peu que les déclarations arrivent du serveur
+    setTimeout(() => {
+      // Vérifier si le joueur a déjà fait sa déclaration
+      const hasPlayerDeclared = gameStore.playerDeclarations && gameStore.playerDeclarations[gameStore.playerId];
 
-    if (!hasPlayerDeclared) {
-      // Le joueur n'a pas encore déclaré, montrer la popup peu importe le round
-      console.log('Player has not declared yet - showing declaration popup');
-      showDeclaration.value = true;
-    }
+      if (!hasPlayerDeclared) {
+        // Le joueur n'a pas encore déclaré, montrer la popup
+        console.log('Player has not declared yet - showing declaration popup');
+        showDeclaration.value = true;
+      } else {
+        console.log('Player already declared, not showing popup:', gameStore.playerDeclarations[gameStore.playerId]);
+      }
+    }, 500); // Attendre 500ms pour que les déclarations arrivent du serveur
 
     return; // Ne pas montrer le countdown de début
   }
@@ -372,7 +377,19 @@ const canCutWire = (playerId: string) => {
   }
 
   const hasPlayerDeclared = gameStore.playerDeclarations[gameStore.playerId] !== undefined;
-  return gameStore.isMyTurn && playerId !== gameStore.playerId && hasPlayerDeclared;
+
+  const canCut = gameStore.isMyTurn && playerId !== gameStore.playerId && hasPlayerDeclared;
+
+  if (gameStore.isMyTurn && !canCut) {
+    console.log('Cannot cut wire:', {
+      isMyTurn: gameStore.isMyTurn,
+      targetNotSelf: playerId !== gameStore.playerId,
+      hasPlayerDeclared,
+      declarations: gameStore.playerDeclarations
+    });
+  }
+
+  return canCut;
 };
 
 const isWireCut = (playerId: string, wireIndex: number) => {

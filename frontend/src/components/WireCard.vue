@@ -59,15 +59,11 @@ const cardClasses = computed(() => {
   }
 
   if (props.canCut) {
-    return 'wire-card-uncut hover:shadow-lg';
+    return 'wire-card-uncut hover:shadow-lg cursor-pointer';
   }
 
-  // For other players' cards, don't make them gray if we can't cut them
-  if (!props.isOwn) {
-    return 'wire-card-uncut';
-  }
-
-  return 'wire-card-uncut opacity-75 cursor-not-allowed';
+  // Always show normal style for uncut cards, regardless of whether we can cut them
+  return 'wire-card-uncut';
 });
 
 const handleClick = () => {
