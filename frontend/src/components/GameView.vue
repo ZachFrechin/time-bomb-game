@@ -97,7 +97,8 @@
         </div>
 
         <!-- Cartes -->
-        <div class="flex space-x-1 justify-center">
+        <div class="flex space-x-1 justify-center"
+             :class="{ 'opacity-50 pointer-events-none': showPreRedistributionCountdown || showRedistributionCountdown || showCountdown || showEndGameCountdown }">
           <div v-for="(wire, index) in (gameStore.room?.gameState?.wiresPerPlayer || 5)" :key="`${player.id}-${index}-${gameStore.room?.gameState?.currentRound || 1}`">
             <WireCard
               :is-cut="isWireCut(player.id, index)"
@@ -306,6 +307,11 @@ const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean })
 };
 
 const canCutWire = (playerId: string) => {
+  // Bloquer les clics pendant tous les timers
+  if (showPreRedistributionCountdown.value || showRedistributionCountdown.value || showCountdown.value || showEndGameCountdown.value) {
+    return false;
+  }
+
   const hasPlayerDeclared = gameStore.playerDeclarations[gameStore.playerId] !== undefined;
   return gameStore.isMyTurn && playerId !== gameStore.playerId && hasPlayerDeclared;
 };
