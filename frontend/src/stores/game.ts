@@ -212,8 +212,24 @@ export const useGameStore = defineStore('game', () => {
             existingPlayer.displayName = newPlayer.displayName;
             existingPlayer.isConnected = newPlayer.isConnected;
             existingPlayer.isMaster = newPlayer.isMaster;
+
             if (newPlayer.wireCards) {
-              existingPlayer.wireCards = newPlayer.wireCards;
+              // Smart merge: preserve types for cut cards
+              const mergedCards = newPlayer.wireCards.map((newCard, index) => {
+                const existingCard = existingPlayer.wireCards?.[index];
+
+                // If the card was cut and had a type, preserve it
+                if (newCard.isCut && existingCard?.type) {
+                  return {
+                    ...newCard,
+                    type: existingCard.type // Keep the existing type
+                  };
+                }
+
+                return newCard;
+              });
+
+              existingPlayer.wireCards = mergedCards;
             }
           } else {
             // New player, add them
