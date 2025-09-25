@@ -191,8 +191,22 @@ export const useGameStore = defineStore('game', () => {
     socketService.on('players_update', (data) => {
       // Update players with their wire cards
       if (data.players && room.value) {
-        // Just use the card state from server, don't modify isCut
-        room.value.players = data.players;
+        // Update each player individually to preserve Vue reactivity
+        data.players.forEach(newPlayer => {
+          const existingPlayer = room.value.players.find(p => p.id === newPlayer.id);
+          if (existingPlayer) {
+            // Update only the properties that changed
+            existingPlayer.displayName = newPlayer.displayName;
+            existingPlayer.isConnected = newPlayer.isConnected;
+            existingPlayer.isMaster = newPlayer.isMaster;
+            if (newPlayer.wireCards) {
+              existingPlayer.wireCards = newPlayer.wireCards;
+            }
+          } else {
+            // New player, add them
+            room.value.players.push(newPlayer);
+          }
+        });
       }
 
       // Update game state if provided (happens after redistribution)
@@ -289,13 +303,19 @@ export const useGameStore = defineStore('game', () => {
         if (data.room.state === 'in_game' && data.room.gameState) {
           const turnOrder = data.room.gameState.turnOrder;
           const currentIndex = data.room.gameState.currentPlayerIndex;
-          if (turnOrder && currentIndex >= 0) {
+          if (turnOrder && currentIndex >= 0 && currentIndex < turnOrder.length) {
             currentTurnPlayerId.value = turnOrder[currentIndex];
             const currentPlayerData = data.room.players.find(p => p.id === turnOrder[currentIndex]);
             if (currentPlayerData) {
-              currentTurnPlayerName.value = currentPlayerData.name;
-              console.log('Restored current turn:', currentPlayerData.name);
+              currentTurnPlayerName.value = currentPlayerData.displayName || currentPlayerData.name;
+              console.log('Restored current turn:', {
+                playerId: currentTurnPlayerId.value,
+                playerName: currentTurnPlayerName.value,
+                isMyTurn: currentTurnPlayerId.value === playerId.value
+              });
             }
+          } else {
+            console.warn('Could not restore turn - invalid index or turnOrder');
           }
         }
 
@@ -435,12 +455,23 @@ export const useGameStore = defineStore('game', () => {
   };
 
   const cutWire = (targetPlayerId: string, wireIndex: number) => {
+    console.log('cutWire called:', {
+      targetPlayerId,
+      wireIndex,
+      roomId: room.value?.id,
+      isMyTurn: isMyTurn.value,
+      currentTurn: currentTurnPlayerId.value,
+      myId: playerId.value
+    });
+
     if (room.value && isMyTurn.value) {
       socketService.emit('cut_wire', {
         roomId: room.value.id,
         targetPlayerId,
         wireIndex,
       });
+    } else {
+      console.log('Cannot cut wire - conditions not met');
     }
   };
 

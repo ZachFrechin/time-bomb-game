@@ -41,7 +41,7 @@ export class SocketService {
           socket.join(room.id);
           socket.data.playerId = playerId;
           socket.data.roomId = room.id;
-          socket.data.displayName = data.displayName;
+          socket.data.displayName = data.displayName || player.displayName;
 
           await redisService.saveRoom(room);
           await redisService.savePlayerSession(playerId, {
@@ -77,12 +77,13 @@ export class SocketService {
 
           let playerId: string;
           let isReconnection = false;
+          let player: any;
 
           // Check if player is reconnecting with existing playerId
           if (data.playerId && room.players.has(data.playerId)) {
             // Reconnection - update socket ID
             playerId = data.playerId;
-            const player = room.players.get(playerId)!;
+            player = room.players.get(playerId)!;
             player.socketId = socket.id;
             player.isConnected = true;
             isReconnection = true;
@@ -100,7 +101,7 @@ export class SocketService {
             }
 
             playerId = result.playerId;
-            const player = room.players.get(playerId)!;
+            player = room.players.get(playerId)!;
             player.socketId = socket.id;
           }
 
@@ -109,7 +110,7 @@ export class SocketService {
           socket.join(room.id);
           socket.data.playerId = playerId;
           socket.data.roomId = room.id;
-          socket.data.displayName = data.displayName;
+          socket.data.displayName = data.displayName || player.displayName;
 
           await redisService.saveRoom(room);
           await redisService.savePlayerSession(playerId, {
@@ -194,6 +195,16 @@ export class SocketService {
                 }
               }
 
+              // Send declarations to all players (including the reconnecting one)
+              if (room.gameState?.playerDeclarations) {
+                Object.entries(room.gameState.playerDeclarations).forEach(([pid, declaration]) => {
+                  this.io.to(room.id).emit('player_declared', {
+                    playerId: pid,
+                    declaration: declaration
+                  });
+                });
+              }
+
               // Notify others of reconnection
               socket.to(room.id).emit('player_reconnected', {
                 playerId,
@@ -262,12 +273,19 @@ export class SocketService {
       });
 
       socket.on('cut_wire', async (data) => {
+        console.log('Cut wire request:', data, 'Socket data:', socket.data);
         try {
           const room = gameEngine.getRoom(data.roomId);
-          if (!room) return;
+          if (!room) {
+            console.error('Room not found:', data.roomId);
+            return;
+          }
 
           const playerId = socket.data.playerId;
-          if (!playerId) return;
+          if (!playerId) {
+            console.error('No playerId in socket data');
+            return;
+          }
 
           const result = gameEngine.cutWire(
             data.roomId,
