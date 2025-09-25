@@ -292,8 +292,8 @@ export const useGameStore = defineStore('game', () => {
     socketService.on('room_joined', (data) => {
       console.log('Room rejoined after reconnection:', data);
       if (data.room) {
-        // Sauvegarder les déclarations existantes avant de mettre à jour
-        const existingDeclarations = playerDeclarations.value;
+        // Clear declarations first, they will be sent by server
+        playerDeclarations.value = {};
 
         room.value = data.room;
         playerId.value = data.playerId;
@@ -319,11 +319,8 @@ export const useGameStore = defineStore('game', () => {
           }
         }
 
-        // Restaurer les déclarations si elles existaient
-        if (existingDeclarations && Object.keys(existingDeclarations).length > 0) {
-          playerDeclarations.value = existingDeclarations;
-          console.log('Preserved declarations after room_joined:', existingDeclarations);
-        }
+        // Les déclarations seront envoyées par le serveur via player_declared
+        console.log('Waiting for declarations from server...');
       }
     });
 

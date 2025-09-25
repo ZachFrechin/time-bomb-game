@@ -195,15 +195,18 @@ export class SocketService {
                 }
               }
 
-              // Send declarations to all players (including the reconnecting one)
-              if (room.gameState?.playerDeclarations) {
-                Object.entries(room.gameState.playerDeclarations).forEach(([pid, declaration]) => {
-                  this.io.to(room.id).emit('player_declared', {
-                    playerId: pid,
-                    declaration: declaration
+              // Send declarations after a small delay to ensure client is ready
+              setTimeout(() => {
+                if (room.gameState?.playerDeclarations) {
+                  console.log('Sending declarations to reconnecting player:', room.gameState.playerDeclarations);
+                  Object.entries(room.gameState.playerDeclarations).forEach(([pid, declaration]) => {
+                    socket.emit('player_declared', {
+                      playerId: pid,
+                      declaration: declaration
+                    });
                   });
-                });
-              }
+                }
+              }, 100);
 
               // Notify others of reconnection
               socket.to(room.id).emit('player_reconnected', {

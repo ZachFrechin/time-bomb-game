@@ -62,6 +62,11 @@ const cardClasses = computed(() => {
     return 'wire-card-uncut hover:shadow-lg';
   }
 
+  // For other players' cards, don't make them gray if we can't cut them
+  if (!props.isOwn) {
+    return 'wire-card-uncut';
+  }
+
   return 'wire-card-uncut opacity-75 cursor-not-allowed';
 });
 
