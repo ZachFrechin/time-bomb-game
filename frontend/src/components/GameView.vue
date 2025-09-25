@@ -184,8 +184,8 @@ onMounted(() => {
   const savedSession = localStorage.getItem('timebomb-session');
 
   if (reconnectFlag === 'true') {
-    // On vient de se reconnecter, ne pas montrer les timers
-    console.log('Reconnection flag found - skipping all timers');
+    // On vient de se reconnecter
+    console.log('Reconnection flag found - checking if player has declared');
     hasShownInitialCountdown.value = true;
     sessionStorage.removeItem('timebomb-reconnecting');
 
@@ -201,7 +201,17 @@ onMounted(() => {
         console.error('Error parsing saved session:', e);
       }
     }
-    return; // Ne pas montrer le countdown
+
+    // Vérifier si le joueur a déjà fait sa déclaration
+    const hasPlayerDeclared = gameStore.playerDeclarations && gameStore.playerDeclarations[gameStore.playerId];
+
+    if (!hasPlayerDeclared && gameStore.room?.gameState?.currentRound > 1) {
+      // Le joueur n'a pas encore déclaré pour ce round, montrer la popup
+      console.log('Player has not declared yet - showing declaration popup');
+      showDeclaration.value = true;
+    }
+
+    return; // Ne pas montrer le countdown de début
   }
 
   // Si on est en jeu et pas déjà montré, montrer le countdown

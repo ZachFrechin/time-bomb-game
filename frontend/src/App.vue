@@ -39,6 +39,7 @@ const handleVisibilityChange = () => {
         console.log('PWA/Mobile detected and was away for', timeSinceHidden, 'ms - reloading page')
 
         // Sauvegarder l'état complet dans localStorage avant de recharger
+        console.log('Saving complete state before reload - declarations:', gameStore.playerDeclarations)
         const sessionData = {
           roomId: gameStore.room.id,
           playerId: gameStore.playerId,
@@ -49,10 +50,14 @@ const handleVisibilityChange = () => {
           gameState: gameStore.room?.state,
           isInGame: gameStore.room?.state === 'in_game',
           hasShownCountdown: true,
-          playerDeclarations: gameStore.playerDeclarations,
-          currentRound: gameStore.room?.gameState?.currentRound
+          playerDeclarations: {...gameStore.playerDeclarations}, // Copie profonde
+          currentRound: gameStore.room?.gameState?.currentRound,
+          currentTurn: gameStore.currentTurnPlayerId,
+          playerRole: gameStore.playerRole,
+          playerWireCards: [...gameStore.playerWireCards]
         }
         localStorage.setItem('timebomb-session', JSON.stringify(sessionData))
+        console.log('Session saved before reload:', sessionData)
 
         // Si on est en jeu, marquer qu'on est en reconnexion pour skip les timers
         if (gameStore.room?.state === 'in_game') {
@@ -133,6 +138,7 @@ const handleVisibilityChange = () => {
     // Sur PWA/mobile, sauvegarder l'état complet au cas où
     if ((isPWA || isMobile) && gameStore.room?.id) {
       console.log('PWA/Mobile app hidden - saving complete state')
+      console.log('Current declarations:', gameStore.playerDeclarations)
       const sessionData = {
         roomId: gameStore.room.id,
         playerId: gameStore.playerId,
@@ -143,10 +149,14 @@ const handleVisibilityChange = () => {
         gameState: gameStore.room?.state,
         isInGame: gameStore.room?.state === 'in_game',
         hasShownCountdown: true, // Pour éviter de relancer le countdown
-        playerDeclarations: gameStore.playerDeclarations,
-        currentRound: gameStore.room?.gameState?.currentRound
+        playerDeclarations: {...gameStore.playerDeclarations}, // Copie profonde
+        currentRound: gameStore.room?.gameState?.currentRound,
+        currentTurn: gameStore.currentTurnPlayerId,
+        playerRole: gameStore.playerRole,
+        playerWireCards: [...gameStore.playerWireCards]
       }
       localStorage.setItem('timebomb-session', JSON.stringify(sessionData))
+      console.log('Saved session data:', sessionData)
     }
   }
 }
@@ -173,6 +183,18 @@ onMounted(async () => {
         if (data.isInGame || data.gameState === 'in_game') {
           console.log('Was in game - setting reconnection flag')
           sessionStorage.setItem('timebomb-reconnecting', 'true')
+
+          // Restaurer l'état du jeu dans le store avant de rejoindre
+          if (data.playerDeclarations) {
+            gameStore.playerDeclarations = data.playerDeclarations
+            console.log('Pre-restored declarations:', data.playerDeclarations)
+          }
+          if (data.currentTurn) {
+            gameStore.currentTurnPlayerId = data.currentTurn
+          }
+          if (data.playerRole) {
+            gameStore.playerRole = data.playerRole
+          }
         }
 
         // Utiliser la méthode joinRoom du store qui gère tout

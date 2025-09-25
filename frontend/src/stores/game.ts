@@ -270,20 +270,52 @@ export const useGameStore = defineStore('game', () => {
 
     socketService.on('game_state_update', (data) => {
       console.log('Received game state update:', data);
+      // Sauvegarder les déclarations existantes
+      const existingDeclarations = playerDeclarations.value;
+
       if (room.value && data.gameState) {
         room.value.gameState = {
           ...data.gameState,
           currentPlayerId: data.gameState.turnOrder?.[data.gameState.currentPlayerIndex],
         };
       }
+
+      // Restaurer les déclarations
+      if (existingDeclarations && Object.keys(existingDeclarations).length > 0) {
+        playerDeclarations.value = existingDeclarations;
+        console.log('Preserved declarations after game_state_update:', existingDeclarations);
+      }
     });
 
     socketService.on('room_joined', (data) => {
       console.log('Room rejoined after reconnection:', data);
       if (data.room) {
+        // Sauvegarder les déclarations existantes avant de mettre à jour
+        const existingDeclarations = playerDeclarations.value;
+
         room.value = data.room;
         playerId.value = data.playerId;
         playerToken.value = data.token;
+
+        // Restaurer le tour actuel si on est en jeu
+        if (data.room.state === 'in_game' && data.room.gameState) {
+          const turnOrder = data.room.gameState.turnOrder;
+          const currentIndex = data.room.gameState.currentPlayerIndex;
+          if (turnOrder && currentIndex >= 0) {
+            currentTurnPlayerId.value = turnOrder[currentIndex];
+            const currentPlayerData = data.room.players.find(p => p.id === turnOrder[currentIndex]);
+            if (currentPlayerData) {
+              currentTurnPlayerName.value = currentPlayerData.name;
+              console.log('Restored current turn:', currentPlayerData.name);
+            }
+          }
+        }
+
+        // Restaurer les déclarations si elles existaient
+        if (existingDeclarations && Object.keys(existingDeclarations).length > 0) {
+          playerDeclarations.value = existingDeclarations;
+          console.log('Preserved declarations after room_joined:', existingDeclarations);
+        }
       }
     });
 
