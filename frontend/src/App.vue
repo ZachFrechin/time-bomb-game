@@ -8,7 +8,7 @@
 import { RouterView } from 'vue-router'
 import { onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
-import socketService from '@/services/socket'
+import { socketService } from '@/services/socket'
 
 const gameStore = useGameStore()
 
