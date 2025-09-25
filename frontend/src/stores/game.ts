@@ -43,9 +43,42 @@ export const useGameStore = defineStore('game', () => {
     return room.value?.players.filter(p => p.id !== playerId.value) || [];
   });
 
+  const handleReconnection = async () => {
+    console.log('Attempting to restore game state after reconnection...');
+
+    // Si on était dans une room, essayer de la rejoindre à nouveau
+    if (room.value?.id && playerId.value && playerName.value) {
+      const currentRoomId = room.value.id;
+
+      try {
+        console.log('Rejoining room:', currentRoomId);
+        // Envoyer l'événement de rejoin au serveur
+        socketService.emit('join_room', {
+          roomId: currentRoomId,
+          playerName: playerName.value,
+          playerId: playerId.value,
+        });
+      } catch (error) {
+        console.error('Failed to rejoin room after reconnection:', error);
+      }
+    }
+  };
+
   const setupSocketListeners = () => {
     if (socketListenersSetup.value) return;
     socketListenersSetup.value = true;
+
+    // Gérer la reconnexion automatique
+    const socket = socketService.getSocket();
+    if (socket) {
+      socket.on('connect', () => {
+        console.log('Socket reconnected');
+        if (room.value?.id) {
+          handleReconnection();
+        }
+      });
+    }
+
     socketService.on('lobby_update', (data) => {
       if (room.value) {
         room.value.players = data.players;
@@ -197,6 +230,25 @@ export const useGameStore = defineStore('game', () => {
       }
     });
 
+    socketService.on('game_state_update', (data) => {
+      console.log('Received game state update:', data);
+      if (room.value && data.gameState) {
+        room.value.gameState = {
+          ...data.gameState,
+          currentPlayerId: data.gameState.turnOrder?.[data.gameState.currentPlayerIndex],
+        };
+      }
+    });
+
+    socketService.on('room_joined', (data) => {
+      console.log('Room rejoined after reconnection:', data);
+      if (data.room) {
+        room.value = data.room;
+        playerId.value = data.playerId;
+        playerToken.value = data.token;
+      }
+    });
+
     socketService.on('error', (data) => {
       console.error('Socket error:', data);
     });
@@ -244,13 +296,33 @@ export const useGameStore = defineStore('game', () => {
     }
   };
 
-  const joinRoom = async (roomId: string, displayName: string, avatar?: string) => {
+  // Sauvegarder dans localStorage
+  const saveToLocalStorage = () => {
+    if (room.value?.id && playerId.value && playerName.value) {
+      const data = {
+        roomId: room.value.id,
+        playerId: playerId.value,
+        playerName: playerName.value,
+        token: playerToken.value,
+      };
+      localStorage.setItem('timebomb-session', JSON.stringify(data));
+    }
+  };
+
+  const joinRoom = async (roomId: string, displayName: string, avatar?: string, existingPlayerId?: string) => {
     try {
       socketService.connect();
       setupSocketListeners();
 
       return new Promise<boolean>((resolve, reject) => {
-        socketService.emit('join_room', { roomId, displayName, avatar }, (result) => {
+        const joinData: any = { roomId, displayName, avatar };
+
+        // Include existing playerId for reconnection
+        if (existingPlayerId || playerId.value) {
+          joinData.playerId = existingPlayerId || playerId.value;
+        }
+
+        socketService.emit('join_room', joinData, (result) => {
           if (result.success) {
             playerId.value = result.playerId;
             playerName.value = displayName;
@@ -268,6 +340,9 @@ export const useGameStore = defineStore('game', () => {
               },
               masterId: '',
             };
+
+            // Sauvegarder la session dans localStorage
+            saveToLocalStorage();
 
             resolve(true);
           } else {

@@ -71,16 +71,31 @@ export class SocketService {
             }
           }
 
-          const result = gameEngine.joinRoom(data.roomId, data.displayName, data.avatar);
+          let playerId: string;
+          let isReconnection = false;
 
-          if (!result) {
-            callback({ success: false, error: 'Cannot join room' });
-            return;
+          // Check if player is reconnecting with existing playerId
+          if (data.playerId && room.players.has(data.playerId)) {
+            // Reconnection - update socket ID
+            playerId = data.playerId;
+            const player = room.players.get(playerId)!;
+            player.socketId = socket.id;
+            player.isConnected = true;
+            isReconnection = true;
+            console.log(`Player ${player.displayName} reconnected to room ${room.id}`);
+          } else {
+            // New player joining
+            const result = gameEngine.joinRoom(data.roomId, data.displayName || data.playerName, data.avatar);
+
+            if (!result) {
+              callback({ success: false, error: 'Cannot join room' });
+              return;
+            }
+
+            playerId = result.playerId;
+            const player = room.players.get(playerId)!;
+            player.socketId = socket.id;
           }
-
-          const { playerId } = result;
-          const player = room.players.get(playerId)!;
-          player.socketId = socket.id;
 
           const token = signToken({ playerId, roomId: room.id, isMaster: false });
 
@@ -98,10 +113,75 @@ export class SocketService {
 
           callback({ success: true, roomId: room.id, token, playerId });
 
-          socket.to(room.id).emit('joined_room', {
-            roomId: room.id,
-            playerId,
-          });
+          if (isReconnection) {
+            // Send full game state on reconnection
+            const player = room.players.get(playerId)!;
+
+            // Send room state
+            socket.emit('room_joined', {
+              room: {
+                id: room.id,
+                state: room.state,
+                masterId: room.masterId,
+                players: Array.from(room.players.values()).map(p => ({
+                  id: p.id,
+                  displayName: p.displayName,
+                  isConnected: p.isConnected,
+                  isMaster: p.isMaster,
+                })),
+                options: room.options,
+              },
+              playerId,
+              token,
+            });
+
+            // If in game, send game state
+            if (room.state === 'in_game' && room.gameState) {
+              // Send game state
+              socket.emit('game_state_update', {
+                gameState: room.gameState,
+              });
+
+              // Send private hand
+              if (player.wireCards) {
+                socket.emit('private_hand', {
+                  role: player.role!,
+                  wireCards: player.wireCards.map((card, index) => ({
+                    position: index,
+                    isOwn: true,
+                    type: card.type,
+                    isCut: card.isCut,
+                  })),
+                });
+              }
+
+              // Send players with their cards
+              socket.emit('players_update', {
+                players: Array.from(room.players.values()).map(p => ({
+                  id: p.id,
+                  displayName: p.displayName,
+                  isConnected: p.isConnected,
+                  isMaster: p.isMaster,
+                  wireCards: p.wireCards?.map(card => ({
+                    position: card.position,
+                    isCut: card.isCut,
+                    type: card.isCut ? card.type : undefined,
+                  })),
+                })),
+              });
+
+              // Notify others of reconnection
+              socket.to(room.id).emit('player_reconnected', {
+                playerId,
+                playerName: player.displayName,
+              });
+            }
+          } else {
+            socket.to(room.id).emit('joined_room', {
+              roomId: room.id,
+              playerId,
+            });
+          }
 
           this.broadcastLobbyUpdate(room.id);
         } catch (error) {
