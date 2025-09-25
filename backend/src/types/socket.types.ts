@@ -59,7 +59,7 @@ export interface ClientToServerEvents {
     playerName?: string;
     avatar?: string;
     playerId?: string;
-  }, callback: (response: any) => void) => void;
+  }, callback?: (response: any) => void) => void;
   start_game: (data: { roomId: string; masterToken: string }) => void;
   cut_wire: (data: { roomId: string; targetPlayerId: string; wireIndex: number }) => void;
   send_chat: (data: { roomId: string; message: string }) => void;

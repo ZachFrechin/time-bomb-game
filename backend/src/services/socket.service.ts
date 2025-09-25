@@ -50,7 +50,9 @@ export class SocketService {
             displayName: data.displayName,
           });
 
-          callback({ success: true, roomId: room.id, token, playerId });
+          if (callback) {
+            callback({ success: true, roomId: room.id, token, playerId });
+          }
 
           this.broadcastLobbyUpdate(room.id);
         } catch (error) {
@@ -66,7 +68,9 @@ export class SocketService {
           if (!room) {
             room = await redisService.getRoom(data.roomId) || undefined;
             if (!room) {
-              callback({ success: false, error: 'Room not found' });
+              if (callback) {
+                callback({ success: false, error: 'Room not found' });
+              }
               return;
             }
           }
@@ -89,7 +93,9 @@ export class SocketService {
             const result = gameEngine.joinRoom(data.roomId, displayName, data.avatar);
 
             if (!result) {
-              callback({ success: false, error: 'Cannot join room' });
+              if (callback) {
+                callback({ success: false, error: 'Cannot join room' });
+              }
               return;
             }
 
@@ -112,7 +118,9 @@ export class SocketService {
             displayName: data.displayName,
           });
 
-          callback({ success: true, roomId: room.id, token, playerId });
+          if (callback) {
+            callback({ success: true, roomId: room.id, token, playerId });
+          }
 
           if (isReconnection) {
             // Send full game state on reconnection
@@ -187,7 +195,9 @@ export class SocketService {
           this.broadcastLobbyUpdate(room.id);
         } catch (error) {
           console.error('Error joining room:', error);
-          callback({ success: false, error: 'Failed to join room' });
+          if (callback) {
+            callback({ success: false, error: 'Failed to join room' });
+          }
         }
       });
 

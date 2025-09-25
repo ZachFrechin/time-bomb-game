@@ -63,10 +63,21 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('Connected to server');
+      // Émettre un événement custom pour notifier la reconnexion
+      this.emit('socket_reconnected' as any);
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('Disconnected from server:', reason);
+    });
+
+    // Gérer les tentatives de reconnexion
+    this.socket.io.on('reconnect_attempt', (attemptNumber) => {
+      console.log('Reconnection attempt #' + attemptNumber);
+    });
+
+    this.socket.io.on('reconnect', (attemptNumber) => {
+      console.log('Reconnected after ' + attemptNumber + ' attempts');
     });
   }
 

@@ -52,11 +52,28 @@ export const useGameStore = defineStore('game', () => {
 
       try {
         console.log('Rejoining room:', currentRoomId);
-        // Envoyer l'événement de rejoin au serveur
+        // Utiliser un callback pour s'assurer que la reconnexion fonctionne
         socketService.emit('join_room', {
           roomId: currentRoomId,
           playerName: playerName.value,
           playerId: playerId.value,
+        }, (result: any) => {
+          if (result.success) {
+            console.log('Successfully rejoined room');
+            // Forcer une mise à jour de l'état
+            saveToLocalStorage();
+          } else {
+            console.error('Failed to rejoin:', result.error);
+            // Si échec, essayer de charger depuis localStorage
+            const saved = localStorage.getItem('timebomb-session');
+            if (saved) {
+              const data = JSON.parse(saved);
+              if (data.roomId === currentRoomId) {
+                // Réessayer avec les données sauvegardées
+                setTimeout(() => handleReconnection(), 2000);
+              }
+            }
+          }
         });
       } catch (error) {
         console.error('Failed to rejoin room after reconnection:', error);
@@ -68,16 +85,14 @@ export const useGameStore = defineStore('game', () => {
     if (socketListenersSetup.value) return;
     socketListenersSetup.value = true;
 
-    // Gérer la reconnexion automatique
-    const socket = socketService.getSocket();
-    if (socket) {
-      socket.on('connect', () => {
-        console.log('Socket reconnected');
-        if (room.value?.id) {
-          handleReconnection();
-        }
-      });
-    }
+    // Gérer la reconnexion automatique via notre événement custom
+    socketService.on('socket_reconnected' as any, () => {
+      console.log('Socket reconnected - checking if we need to rejoin room');
+      if (room.value?.id && playerId.value) {
+        console.log('Rejoining room after reconnection:', room.value.id);
+        handleReconnection();
+      }
+    });
 
     socketService.on('lobby_update', (data) => {
       if (room.value) {
