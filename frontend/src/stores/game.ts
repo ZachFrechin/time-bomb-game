@@ -81,6 +81,29 @@ export const useGameStore = defineStore('game', () => {
     }
   };
 
+  // Heartbeat pour vérifier la connexion
+  let heartbeatInterval: any = null;
+
+  const startHeartbeat = () => {
+    stopHeartbeat();
+    heartbeatInterval = setInterval(() => {
+      if (room.value?.id && playerId.value) {
+        const socket = socketService.getSocket();
+        if (!socket?.connected) {
+          console.log('Heartbeat detected disconnection - reconnecting...');
+          socketService.connect();
+        }
+      }
+    }, 5000); // Vérifier toutes les 5 secondes
+  };
+
+  const stopHeartbeat = () => {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  };
+
   const setupSocketListeners = () => {
     if (socketListenersSetup.value) return;
     socketListenersSetup.value = true;
@@ -359,6 +382,9 @@ export const useGameStore = defineStore('game', () => {
             // Sauvegarder la session dans localStorage
             saveToLocalStorage();
 
+            // Démarrer le heartbeat pour détecter les déconnexions
+            startHeartbeat();
+
             resolve(true);
           } else {
             reject(new Error(result.error || 'Failed to join room'));
@@ -480,6 +506,13 @@ export const useGameStore = defineStore('game', () => {
     playerDeclarations.value = {};
     preventGameOverDisplay.value = false;
     socketListenersSetup.value = false;
+
+    // Arrêter le heartbeat
+    stopHeartbeat();
+
+    // Effacer la session locale
+    localStorage.removeItem('timebomb-session');
+
     socketService.disconnect();
   };
 

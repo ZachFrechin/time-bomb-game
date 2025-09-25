@@ -17,11 +17,39 @@ const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
     console.log('App became visible - checking connection')
 
-    // Si on était dans une room et qu'on n'est pas connecté, reconnecter
-    if (gameStore.room?.id && !socketService.getSocket()?.connected) {
-      console.log('Was in room but disconnected - reconnecting...')
-      socketService.connect()
+    // Si on était dans une room, forcer la reconnexion pour s'assurer qu'on est synchronisé
+    if (gameStore.room?.id && gameStore.playerId) {
+      const socket = socketService.getSocket()
+
+      if (!socket?.connected) {
+        console.log('Socket disconnected - reconnecting...')
+        socketService.connect()
+      } else {
+        // Même si le socket semble connecté, on force un rejoin pour se resynchroniser
+        console.log('Socket seems connected but forcing rejoin to sync state...')
+
+        // Envoyer directement la demande de rejoin
+        socketService.emit('join_room', {
+          roomId: gameStore.room.id,
+          playerName: gameStore.playerName,
+          playerId: gameStore.playerId,
+        }, (result: any) => {
+          if (result?.success) {
+            console.log('Successfully resynced with room')
+          } else {
+            console.log('Failed to resync, trying full reconnect...')
+            // Si échec, déconnecter et reconnecter
+            socketService.disconnect()
+            setTimeout(() => {
+              socketService.connect()
+            }, 100)
+          }
+        })
+      }
     }
+  } else if (document.visibilityState === 'hidden') {
+    console.log('App became hidden')
+    // Optionnel : on peut noter quand l'app est cachée
   }
 }
 
