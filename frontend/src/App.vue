@@ -38,13 +38,19 @@ const handleVisibilityChange = () => {
       if ((isPWA || isMobile) && timeSinceHidden > 3000) {
         console.log('PWA/Mobile detected and was away for', timeSinceHidden, 'ms - reloading page')
 
-        // Sauvegarder les infos dans localStorage avant de recharger
+        // Sauvegarder l'état complet dans localStorage avant de recharger
         const sessionData = {
           roomId: gameStore.room.id,
           playerId: gameStore.playerId,
           playerName: gameStore.playerName,
           shouldReconnect: true,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          // Sauvegarder l'état du jeu pour éviter de relancer les timers
+          gameState: gameStore.room?.state,
+          isInGame: gameStore.room?.state === 'in_game',
+          hasShownCountdown: true,
+          playerDeclarations: gameStore.playerDeclarations,
+          currentRound: gameStore.room?.gameState?.currentRound
         }
         localStorage.setItem('timebomb-session', JSON.stringify(sessionData))
 
@@ -119,15 +125,21 @@ const handleVisibilityChange = () => {
     hiddenTimestamp = Date.now()
     console.log('App became hidden - PWA:', isPWA, 'Mobile:', isMobile)
 
-    // Sur PWA/mobile, sauvegarder l'état au cas où
+    // Sur PWA/mobile, sauvegarder l'état complet au cas où
     if ((isPWA || isMobile) && gameStore.room?.id) {
-      console.log('PWA/Mobile app hidden - saving state')
+      console.log('PWA/Mobile app hidden - saving complete state')
       const sessionData = {
         roomId: gameStore.room.id,
         playerId: gameStore.playerId,
         playerName: gameStore.playerName,
         shouldReconnect: true,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        // Sauvegarder l'état du jeu
+        gameState: gameStore.room?.state,
+        isInGame: gameStore.room?.state === 'in_game',
+        hasShownCountdown: true, // Pour éviter de relancer le countdown
+        playerDeclarations: gameStore.playerDeclarations,
+        currentRound: gameStore.room?.gameState?.currentRound
       }
       localStorage.setItem('timebomb-session', JSON.stringify(sessionData))
     }

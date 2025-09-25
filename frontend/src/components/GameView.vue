@@ -177,7 +177,32 @@ const frozenOtherPlayersCards = ref(null);
 
 // Démarrer le décompte au montage si on est en jeu
 onMounted(() => {
-  if (gameStore.room?.state === 'in_game' && !hasShownInitialCountdown.value) {
+  // Vérifier si on revient d'une reconnexion
+  const savedSession = localStorage.getItem('timebomb-session');
+  let isReconnection = false;
+
+  if (savedSession) {
+    try {
+      const data = JSON.parse(savedSession);
+      // Si on avait déjà montré le countdown et qu'on est en jeu, ne pas le remontrer
+      if (data.hasShownCountdown && data.isInGame) {
+        isReconnection = true;
+        hasShownInitialCountdown.value = true;
+        console.log('Skipping countdown - reconnection detected');
+
+        // Restaurer les déclarations si elles existent
+        if (data.playerDeclarations) {
+          gameStore.playerDeclarations = data.playerDeclarations;
+          console.log('Restored player declarations:', data.playerDeclarations);
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing saved session:', e);
+    }
+  }
+
+  // Ne montrer le countdown que si c'est un nouveau jeu, pas une reconnexion
+  if (gameStore.room?.state === 'in_game' && !hasShownInitialCountdown.value && !isReconnection) {
     hasShownInitialCountdown.value = true;
     showCountdown.value = true;
   }
@@ -294,9 +319,29 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
 
 const hideCountdown = () => {
   showCountdown.value = false;
-  // Démarrer le timer d'analyse pour le premier round
-  console.log('Starting analysis timer after initial countdown');
-  startRedistributionCountdown();
+
+  // Vérifier si on doit vraiment lancer le timer d'analyse
+  const savedSession = localStorage.getItem('timebomb-session');
+  let skipAnalysisTimer = false;
+
+  if (savedSession) {
+    try {
+      const data = JSON.parse(savedSession);
+      // Si on revient d'une reconnexion en plein jeu, ne pas lancer le timer
+      if (data.isInGame && data.currentRound && data.currentRound > 1) {
+        skipAnalysisTimer = true;
+        console.log('Skipping analysis timer - mid-game reconnection');
+      }
+    } catch (e) {
+      console.error('Error parsing saved session:', e);
+    }
+  }
+
+  if (!skipAnalysisTimer) {
+    // Démarrer le timer d'analyse pour le premier round
+    console.log('Starting analysis timer after initial countdown');
+    startRedistributionCountdown();
+  }
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
