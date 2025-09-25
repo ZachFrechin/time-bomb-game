@@ -274,18 +274,12 @@ watch(() => gameStore.room?.gameState?.cardsRevealedThisRound, (cardsRevealed, o
         wireCards: p.wireCards ? [...p.wireCards] : undefined
       })) || [];
 
-      // Démarrer le timer approprié selon la manche
-      const currentRound = gameStore.room?.gameState?.currentRound || 1;
+      // Démarrer le timer approprié - on ne devrait jamais arriver ici au tout début du jeu
+      // car on vérifie isActuallyPlaying (cardsRevealed > 0)
       if (!showPreRedistributionCountdown.value && !showRedistributionCountdown.value && !showCountdown.value && !showDeclaration.value) {
-        if (currentRound === 1) {
-          // Première manche: directement le timer "Analyse"
-          console.log('✅ First round - starting analysis timer directly');
-          startRedistributionCountdown();
-        } else {
-          // Autres manches: timer "Prochaine manche dans..." puis "Analyse"
-          console.log('✅ Starting next round countdown');
-          startPreRedistributionCountdown();
-        }
+        // Toujours afficher "Prochaine manche dans..." quand on finit une manche
+        console.log('✅ End of round - starting "Prochaine manche dans..." countdown');
+        startPreRedistributionCountdown();
       } else {
         console.log('❌ Timer already running or declaration showing, skipping');
       }
