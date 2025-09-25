@@ -213,6 +213,9 @@ export class GameEngine {
     gameState.wiresPerPlayer = newCardsPerPlayer;
     gameState.cardsRevealedThisRound = 0;
 
+    // Reset player declarations for new round
+    gameState.playerDeclarations = {};
+
     // Set first player for new round to the last targeted player
     if (gameState.lastTargetedPlayerId) {
       const targetIndex = gameState.turnOrder.indexOf(gameState.lastTargetedPlayerId);

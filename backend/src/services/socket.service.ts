@@ -146,9 +146,12 @@ export class SocketService {
 
             // If in game, send game state
             if (room.state === 'in_game' && room.gameState) {
-              // Send game state
+              // Send game state with declarations
               socket.emit('game_state_update', {
-                gameState: room.gameState,
+                gameState: {
+                  ...room.gameState,
+                  playerDeclarations: room.gameState.playerDeclarations || {}
+                },
               });
 
               // Send private hand
@@ -178,6 +181,18 @@ export class SocketService {
                   })),
                 })),
               });
+
+              // Send current turn info
+              if (room.gameState?.turnOrder && room.gameState.currentPlayerIndex >= 0) {
+                const currentPlayerId = room.gameState.turnOrder[room.gameState.currentPlayerIndex];
+                const currentPlayer = room.players.get(currentPlayerId);
+                if (currentPlayer) {
+                  socket.emit('player_turn', {
+                    playerId: currentPlayerId,
+                    playerName: currentPlayer.displayName,
+                  });
+                }
+              }
 
               // Notify others of reconnection
               socket.to(room.id).emit('player_reconnected', {
@@ -396,6 +411,46 @@ export class SocketService {
         } catch (error) {
           console.error('Error leaving room:', error);
         }
+      });
+
+      socket.on('declare_wires', async (data: { safeWires: number; hasBomb: boolean }, callback?: any) => {
+        if (!socket.data.roomId || !socket.data.playerId) {
+          if (callback) callback({ success: false, error: 'No room or player data' });
+          return;
+        }
+
+        const room = gameEngine.getRoom(socket.data.roomId);
+        if (!room) {
+          if (callback) callback({ success: false, error: 'Room not found' });
+          return;
+        }
+
+        // Store declaration in game state
+        if (!room.gameState) {
+          if (callback) callback({ success: false, error: 'Game not started' });
+          return;
+        }
+
+        if (!room.gameState.playerDeclarations) {
+          room.gameState.playerDeclarations = {};
+        }
+
+        room.gameState.playerDeclarations[socket.data.playerId] = {
+          safeWires: data.safeWires,
+          hasBomb: data.hasBomb
+        };
+
+        // Broadcast to all players
+        this.io.to(socket.data.roomId).emit('player_declared', {
+          playerId: socket.data.playerId,
+          declaration: {
+            safeWires: data.safeWires,
+            hasBomb: data.hasBomb
+          }
+        });
+
+        await redisService.saveRoom(room);
+        if (callback) callback({ success: true });
       });
 
       socket.on('disconnect', async () => {

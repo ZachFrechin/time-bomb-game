@@ -164,11 +164,8 @@ export const useGameStore = defineStore('game', () => {
 
     socketService.on('private_hand', (data) => {
       playerRole.value = data.role;
-      // Ensure all cards are reset with isCut = false
-      playerWireCards.value = data.wireCards.map(card => ({
-        ...card,
-        isCut: false
-      }));
+      // Use the isCut state from server (important for reconnection)
+      playerWireCards.value = data.wireCards;
     });
 
     socketService.on('player_turn', (data) => {
@@ -194,15 +191,8 @@ export const useGameStore = defineStore('game', () => {
     socketService.on('players_update', (data) => {
       // Update players with their wire cards
       if (data.players && room.value) {
-        // If we're starting a new game, ensure all wire cards are reset
-        room.value.players = data.players.map(player => ({
-          ...player,
-          wireCards: player.wireCards ? player.wireCards.map(card => ({
-            ...card,
-            // Reset isCut if it's a new game (no cuts yet)
-            isCut: room.value?.gameState?.cardsRevealedThisRound ? card.isCut : false
-          })) : undefined
-        }));
+        // Just use the card state from server, don't modify isCut
+        room.value.players = data.players;
       }
 
       // Update game state if provided (happens after redistribution)
@@ -270,20 +260,18 @@ export const useGameStore = defineStore('game', () => {
 
     socketService.on('game_state_update', (data) => {
       console.log('Received game state update:', data);
-      // Sauvegarder les déclarations existantes
-      const existingDeclarations = playerDeclarations.value;
 
       if (room.value && data.gameState) {
         room.value.gameState = {
           ...data.gameState,
           currentPlayerId: data.gameState.turnOrder?.[data.gameState.currentPlayerIndex],
         };
-      }
 
-      // Restaurer les déclarations
-      if (existingDeclarations && Object.keys(existingDeclarations).length > 0) {
-        playerDeclarations.value = existingDeclarations;
-        console.log('Preserved declarations after game_state_update:', existingDeclarations);
+        // Si le serveur envoie des déclarations, les utiliser
+        if (data.gameState.playerDeclarations) {
+          playerDeclarations.value = data.gameState.playerDeclarations;
+          console.log('Received declarations from server:', data.gameState.playerDeclarations);
+        }
       }
     });
 
@@ -316,6 +304,13 @@ export const useGameStore = defineStore('game', () => {
           playerDeclarations.value = existingDeclarations;
           console.log('Preserved declarations after room_joined:', existingDeclarations);
         }
+      }
+    });
+
+    socketService.on('player_declared', (data) => {
+      console.log('Player declared:', data);
+      if (data.playerId && data.declaration) {
+        playerDeclarations.value[data.playerId] = data.declaration;
       }
     });
 
@@ -449,19 +444,6 @@ export const useGameStore = defineStore('game', () => {
     }
   };
 
-  const saveDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
-    // Sauvegarder localement
-    playerDeclarations.value[playerId.value] = declaration;
-
-    // Envoyer aux autres joueurs via chat
-    if (room.value) {
-      sendChatMessage(`DECLARATION:${JSON.stringify({
-        playerId: playerId.value,
-        playerName: playerName.value,
-        declaration
-      })}`);
-    }
-  };
 
   const sendChatMessage = (message: string) => {
     if (room.value) {
@@ -522,6 +504,18 @@ export const useGameStore = defineStore('game', () => {
     }
   };
 
+  const declareWires = (declaration: { safeWires: number; hasBomb: boolean }) => {
+    // Envoyer au serveur
+    socketService.emit('declare_wires', declaration, (response: any) => {
+      if (response?.success) {
+        console.log('Declaration sent successfully');
+        // La déclaration sera mise à jour via l'événement player_declared
+      } else {
+        console.error('Failed to send declaration:', response?.error);
+      }
+    });
+  };
+
   const reset = () => {
     room.value = null;
     playerId.value = '';
@@ -570,7 +564,7 @@ export const useGameStore = defineStore('game', () => {
     joinRoom,
     startGame,
     cutWire,
-    saveDeclaration,
+    declareWires,
     sendChatMessage,
     kickPlayer,
     leaveRoom,

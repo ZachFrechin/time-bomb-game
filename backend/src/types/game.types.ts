@@ -18,6 +18,10 @@ export interface Player {
   isConnected: boolean;
   isMaster: boolean;
   avatar?: string;
+  declaration?: {
+    safeWires: number;
+    hasBomb: boolean;
+  };
 }
 
 export interface RoomOptions {
@@ -39,6 +43,7 @@ export interface GameState {
   totalDefusesNeeded: number;
   cardsRevealedThisRound: number;
   lastTargetedPlayerId?: string;
+  playerDeclarations?: Record<string, { safeWires: number; hasBomb: boolean }>;
 }
 
 export interface Room {

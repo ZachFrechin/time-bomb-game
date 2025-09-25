@@ -205,8 +205,8 @@ onMounted(() => {
     // Vérifier si le joueur a déjà fait sa déclaration
     const hasPlayerDeclared = gameStore.playerDeclarations && gameStore.playerDeclarations[gameStore.playerId];
 
-    if (!hasPlayerDeclared && gameStore.room?.gameState?.currentRound > 1) {
-      // Le joueur n'a pas encore déclaré pour ce round, montrer la popup
+    if (!hasPlayerDeclared) {
+      // Le joueur n'a pas encore déclaré, montrer la popup peu importe le round
       console.log('Player has not declared yet - showing declaration popup');
       showDeclaration.value = true;
     }
@@ -359,8 +359,8 @@ const hideCountdown = () => {
 };
 
 const handleDeclaration = (declaration: { safeWires: number; hasBomb: boolean }) => {
-  // Utiliser la fonction du store pour sauvegarder et synchroniser
-  gameStore.saveDeclaration(declaration);
+  // Envoyer au serveur via le store
+  gameStore.declareWires(declaration);
 
   showDeclaration.value = false;
 };

@@ -49,6 +49,13 @@ export interface ServerToClientEvents {
   game_state_update: (data: {
     gameState: any;
   }) => void;
+  player_declared: (data: {
+    playerId: string;
+    declaration: {
+      safeWires: number;
+      hasBomb: boolean;
+    };
+  }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -66,6 +73,7 @@ export interface ClientToServerEvents {
   kick_player: (data: { roomId: string; playerId: string; masterToken: string }) => void;
   leave_room: (data: { roomId: string }) => void;
   reconnect_attempt: (data: { roomId: string; playerId: string; token: string }) => void;
+  declare_wires: (data: { safeWires: number; hasBomb: boolean }, callback?: (response: any) => void) => void;
 }
 
 export interface InterServerEvents {
