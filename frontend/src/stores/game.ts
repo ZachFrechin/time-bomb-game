@@ -358,10 +358,11 @@ export const useGameStore = defineStore('game', () => {
         // Include existing playerId for reconnection
         if (existingPlayerId || playerId.value) {
           joinData.playerId = existingPlayerId || playerId.value;
+          console.log('Rejoining with existing player ID:', joinData.playerId);
         }
 
         socketService.emit('join_room', joinData, (result) => {
-          if (result.success) {
+          if (result?.success) {
             playerId.value = result.playerId;
             playerName.value = displayName;
             playerToken.value = result.token;

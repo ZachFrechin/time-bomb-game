@@ -5,12 +5,13 @@
 </template>
 
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
 import { onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { socketService } from '@/services/socket'
 
 const gameStore = useGameStore()
+const router = useRouter()
 
 // Variable pour tracker si on est sur mobile
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
@@ -151,30 +152,28 @@ onMounted(async () => {
       if (data.roomId && data.playerId && data.playerName && (data.shouldReconnect || timeSinceSession < 300000)) {
         console.log('Found saved session - reconnecting...')
 
-        // Connecter le socket
-        socketService.connect()
+        // Utiliser la méthode joinRoom du store qui gère tout
+        console.log('Using store to rejoin room...')
 
-        // Attendre un peu puis tenter de rejoindre
-        setTimeout(() => {
-          console.log('Attempting to rejoin room from saved session...')
-          socketService.emit('join_room', {
-            roomId: data.roomId,
-            playerName: data.playerName,
-            playerId: data.playerId,
-          }, (result: any) => {
-            if (result?.success) {
-              console.log('Successfully rejoined from saved session')
+        try {
+          const success = await gameStore.joinRoom(data.roomId, data.playerName, undefined, data.playerId)
 
-              // Mettre à jour le store avec les infos
-              gameStore.room = { id: data.roomId } as any
-              gameStore.playerId = data.playerId
-              gameStore.playerName = data.playerName
-            } else {
-              console.error('Failed to rejoin from saved session:', result)
-              localStorage.removeItem('timebomb-session')
+          if (success) {
+            console.log('Successfully rejoined from saved session')
+
+            // Naviguer vers la room si on n'y est pas déjà
+            if (router.currentRoute.value.path !== `/room/${data.roomId}`) {
+              console.log('Navigating to room:', data.roomId)
+              await router.push(`/room/${data.roomId}`)
             }
-          })
-        }, 1000)
+          } else {
+            console.error('Failed to rejoin from saved session')
+            localStorage.removeItem('timebomb-session')
+          }
+        } catch (error) {
+          console.error('Error rejoining room:', error)
+          localStorage.removeItem('timebomb-session')
+        }
       }
     } catch (e) {
       console.error('Failed to parse saved session:', e)
