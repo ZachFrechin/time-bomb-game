@@ -259,9 +259,19 @@ export const useGameStore = defineStore('game', () => {
     });
 
     socketService.on('player_disconnected', (data) => {
-      const player = room.value?.players.find(p => p.id === data.playerId);
-      if (player) {
-        player.isConnected = false;
+      if (room.value?.players) {
+        const playerIndex = room.value.players.findIndex(p => p.id === data.playerId);
+        if (playerIndex !== -1) {
+          // Use Vue's reactivity system properly - create a new object
+          const player = room.value.players[playerIndex];
+          room.value.players[playerIndex] = {
+            ...player,
+            isConnected: false,
+            // Explicitly preserve wire cards with their types
+            wireCards: player.wireCards ? [...player.wireCards] : undefined
+          };
+          console.log('Player disconnected, preserved cards:', room.value.players[playerIndex].wireCards);
+        }
       }
     });
 

@@ -417,7 +417,12 @@ const getWireType = (playerId: string, wireIndex: number) => {
   const players = frozenOtherPlayersCards.value || gameStore.room?.players || [];
   const player = players.find(p => p.id === playerId);
   const wire = player?.wireCards?.[wireIndex];
-  return wire?.isCut ? wire.type : undefined;
+
+  // Always return the type for cut cards, regardless of connection status
+  if (wire?.isCut) {
+    return wire.type || 'neutral'; // Default to neutral if type is missing
+  }
+  return undefined;
 };
 
 const cutWire = (playerId: string, wireIndex: number) => {
