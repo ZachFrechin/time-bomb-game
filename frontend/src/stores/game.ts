@@ -72,17 +72,22 @@ export const useGameStore = defineStore('game', () => {
           });
         }
 
+        // Reset player declarations for new game
+        playerDeclarations.value = {};
+
         room.value.state = 'in_game';
-        if (!room.value.gameState) {
-          room.value.gameState = {
-            currentPlayerIndex: data.currentPlayerIndex,
-            currentPlayerId: data.turnOrder[data.currentPlayerIndex],
-            defusesFound: 0,
-            bombFound: false,
-            totalDefusesNeeded: room.value.players.length,
-            turnOrder: data.turnOrder,
-          };
-        }
+        // Always reset game state for a new game
+        room.value.gameState = {
+          currentPlayerIndex: data.currentPlayerIndex,
+          currentPlayerId: data.turnOrder[data.currentPlayerIndex],
+          defusesFound: 0,
+          bombFound: false,
+          totalDefusesNeeded: room.value.players.length,
+          turnOrder: data.turnOrder,
+          wiresPerPlayer: 5, // Reset to 5 cards per player when game starts
+          cardsRevealedThisRound: 0,
+          currentRound: 1,
+        };
       }
     });
 
