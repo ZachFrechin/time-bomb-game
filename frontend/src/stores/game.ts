@@ -132,7 +132,23 @@ export const useGameStore = defineStore('game', () => {
           }
         });
 
-        room.value.players = data.players;
+        // If we're in game, merge carefully to preserve wire cards
+        if (room.value.state === 'in_game') {
+          // Update connection status without losing cards
+          data.players.forEach(newPlayer => {
+            const existingPlayer = room.value.players.find(p => p.id === newPlayer.id);
+            if (existingPlayer) {
+              existingPlayer.isConnected = newPlayer.isConnected;
+              existingPlayer.displayName = newPlayer.displayName;
+              existingPlayer.isMaster = newPlayer.isMaster;
+              // DO NOT touch wireCards!
+            }
+          });
+        } else {
+          // In lobby, safe to replace everything
+          room.value.players = data.players;
+        }
+
         room.value.options = data.options;
         room.value.masterId = data.masterId;
       } else {

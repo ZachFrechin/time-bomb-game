@@ -221,7 +221,11 @@ export class SocketService {
             });
           }
 
-          this.broadcastLobbyUpdate(room.id);
+          // Only broadcast lobby update if we're in lobby state
+          // In game, we don't want to override player cards
+          if (room.state === 'lobby') {
+            this.broadcastLobbyUpdate(room.id);
+          }
         } catch (error) {
           console.error('Error joining room:', error);
           if (callback) {
