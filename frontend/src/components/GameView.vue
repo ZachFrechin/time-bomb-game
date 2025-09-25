@@ -177,32 +177,36 @@ const frozenOtherPlayersCards = ref(null);
 
 // Démarrer le décompte au montage si on est en jeu
 onMounted(() => {
-  // Vérifier si on revient d'une reconnexion
+  console.log('GameView mounted - checking if we should show countdown');
+
+  // Vérifier d'abord si on a une session de reconnexion
+  const reconnectFlag = sessionStorage.getItem('timebomb-reconnecting');
   const savedSession = localStorage.getItem('timebomb-session');
-  let isReconnection = false;
 
-  if (savedSession) {
-    try {
-      const data = JSON.parse(savedSession);
-      // Si on avait déjà montré le countdown et qu'on est en jeu, ne pas le remontrer
-      if (data.hasShownCountdown && data.isInGame) {
-        isReconnection = true;
-        hasShownInitialCountdown.value = true;
-        console.log('Skipping countdown - reconnection detected');
+  if (reconnectFlag === 'true') {
+    // On vient de se reconnecter, ne pas montrer les timers
+    console.log('Reconnection flag found - skipping all timers');
+    hasShownInitialCountdown.value = true;
+    sessionStorage.removeItem('timebomb-reconnecting');
 
-        // Restaurer les déclarations si elles existent
+    // Restaurer les déclarations depuis la session
+    if (savedSession) {
+      try {
+        const data = JSON.parse(savedSession);
         if (data.playerDeclarations) {
           gameStore.playerDeclarations = data.playerDeclarations;
           console.log('Restored player declarations:', data.playerDeclarations);
         }
+      } catch (e) {
+        console.error('Error parsing saved session:', e);
       }
-    } catch (e) {
-      console.error('Error parsing saved session:', e);
     }
+    return; // Ne pas montrer le countdown
   }
 
-  // Ne montrer le countdown que si c'est un nouveau jeu, pas une reconnexion
-  if (gameStore.room?.state === 'in_game' && !hasShownInitialCountdown.value && !isReconnection) {
+  // Si on est en jeu et pas déjà montré, montrer le countdown
+  if (gameStore.room?.state === 'in_game' && !hasShownInitialCountdown.value) {
+    console.log('Showing initial countdown for new game');
     hasShownInitialCountdown.value = true;
     showCountdown.value = true;
   }

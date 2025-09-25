@@ -54,6 +54,11 @@ const handleVisibilityChange = () => {
         }
         localStorage.setItem('timebomb-session', JSON.stringify(sessionData))
 
+        // Si on est en jeu, marquer qu'on est en reconnexion pour skip les timers
+        if (gameStore.room?.state === 'in_game') {
+          sessionStorage.setItem('timebomb-reconnecting', 'true')
+        }
+
         // Recharger la page pour forcer une reconnexion propre
         window.location.reload()
         return
@@ -163,6 +168,12 @@ onMounted(async () => {
       // Si la session est récente (moins de 5 minutes) et qu'on doit reconnecter
       if (data.roomId && data.playerId && data.playerName && (data.shouldReconnect || timeSinceSession < 300000)) {
         console.log('Found saved session - reconnecting...')
+
+        // Si on était en jeu, marquer qu'on est en reconnexion
+        if (data.isInGame || data.gameState === 'in_game') {
+          console.log('Was in game - setting reconnection flag')
+          sessionStorage.setItem('timebomb-reconnecting', 'true')
+        }
 
         // Utiliser la méthode joinRoom du store qui gère tout
         console.log('Using store to rejoin room...')
