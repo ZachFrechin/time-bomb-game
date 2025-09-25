@@ -85,7 +85,8 @@ export class SocketService {
             console.log(`Player ${player.displayName} reconnected to room ${room.id}`);
           } else {
             // New player joining
-            const result = gameEngine.joinRoom(data.roomId, data.displayName || data.playerName, data.avatar);
+            const displayName = data.displayName || data.playerName || 'Player';
+            const result = gameEngine.joinRoom(data.roomId, displayName, data.avatar);
 
             if (!result) {
               callback({ success: false, error: 'Cannot join room' });

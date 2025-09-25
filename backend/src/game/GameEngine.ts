@@ -50,6 +50,7 @@ export class GameEngine {
       state: 'lobby',
       players: new Map([[playerId, master]]),
       options: roomOptions,
+      masterId: playerId,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

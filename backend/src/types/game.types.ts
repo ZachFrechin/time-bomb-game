@@ -47,6 +47,7 @@ export interface Room {
   players: Map<string, Player>;
   options: RoomOptions;
   gameState?: GameState;
+  masterId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -35,17 +35,31 @@ export interface ServerToClientEvents {
     players: Array<{ id: string; name: string; role: RoleType }>;
   }) => void;
   player_disconnected: (data: { playerId: string; displayName: string }) => void;
-  player_reconnected: (data: { playerId: string; displayName: string }) => void;
+  player_reconnected: (data: { playerId: string; playerName: string }) => void;
   player_kicked: (data: { playerId: string; displayName: string }) => void;
   error: (data: { code: string; message: string }) => void;
   chat_message: (data: { playerId: string; playerName: string; message: string; timestamp: number }) => void;
   reconnect_success: (data: { roomId: string; playerId: string; gameState: any }) => void;
   reconnect_failed: (data: { reason: string }) => void;
+  room_joined: (data: {
+    room: any;
+    playerId: string;
+    token: string;
+  }) => void;
+  game_state_update: (data: {
+    gameState: any;
+  }) => void;
 }
 
 export interface ClientToServerEvents {
   create_room: (data: { displayName: string; options?: any }, callback: (response: any) => void) => void;
-  join_room: (data: { roomId: string; displayName: string; avatar?: string }, callback: (response: any) => void) => void;
+  join_room: (data: {
+    roomId: string;
+    displayName?: string;
+    playerName?: string;
+    avatar?: string;
+    playerId?: string;
+  }, callback: (response: any) => void) => void;
   start_game: (data: { roomId: string; masterToken: string }) => void;
   cut_wire: (data: { roomId: string; targetPlayerId: string; wireIndex: number }) => void;
   send_chat: (data: { roomId: string; message: string }) => void;
