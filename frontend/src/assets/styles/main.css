@@ -6,6 +6,33 @@
   body {
     @apply bg-gray-900 text-gray-100;
   }
+
+  /* iPhone safe areas support */
+  html {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* PWA viewport meta for Android */
+  @supports (-webkit-touch-callout: none) {
+    /* iOS specific styles */
+    .ios-safe-bottom {
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+  }
+
+  /* Hide navigation bar on Android PWA */
+  @media (display-mode: standalone) {
+    /* Hide browser UI in PWA mode */
+    body {
+      overflow-x: hidden;
+    }
+
+    /* Force full screen on Android */
+    html, body {
+      height: 100vh;
+      height: 100dvh; /* Dynamic viewport height for modern browsers */
+    }
+  }
 }
 
 @layer components {
@@ -51,5 +78,37 @@
 
   .wire-card-safe {
     @apply border-blue-500 bg-blue-800 shadow-blue-500/50;
+  }
+}
+
+@layer utilities {
+  /* Safe area utilities */
+  .pb-safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .pt-safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  /* Mobile viewport fixes */
+  .mobile-viewport {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height */
+  }
+
+  /* Hide scrollbars on mobile PWA */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

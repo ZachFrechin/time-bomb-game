@@ -93,14 +93,17 @@ export class GameEngine {
   }
 
   private calculateGameParameters(playerCount: number) {
-    // Moriarty count based on rules
+    // Moriarty count based on new rules
     let evilCount: number;
-    if (playerCount <= 4) {
+    if (playerCount <= 3) {
       evilCount = 1;
+    } else if (playerCount === 4) {
+      // Random between 1 and 2 for 4 players
+      evilCount = Math.random() < 0.5 ? 1 : 2;
     } else if (playerCount === 5) {
-      evilCount = 1; // Could be 1 or 2, default to 1 for balance
-    } else {
       evilCount = 2;
+    } else {
+      evilCount = 2; // 6+ players
     }
 
     const goodCount = playerCount - evilCount;
