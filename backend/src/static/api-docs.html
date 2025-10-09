@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Bomb Game - API Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            securityLevel: 'loose',
+            themeVariables: {
+                primaryColor: '#3b82f6',
+                primaryBorderColor: '#60a5fa',
+                primaryTextColor: '#fff',
+                lineColor: '#60a5fa',
+                secondaryColor: '#10b981',
+                tertiaryColor: '#f59e0b',
+                background: '#1f2937',
+                mainBkg: '#1f2937',
+                secondBkg: '#111827',
+                tertiaryBkg: '#374151'
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🎮 Time Bomb Game API</h1>
+            <p class="subtitle">Complete API Documentation & Architecture</p>
+        </header>
+
+        <!-- Search Bar -->
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search endpoints, types, or events..." class="search-input">
+            <span class="search-hint">Press / to search</span>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="architecture">Architecture</button>
+            <button class="tab-btn" data-tab="rest">REST API</button>
+            <button class="tab-btn" data-tab="websocket">WebSocket Events</button>
+            <button class="tab-btn" data-tab="types">Types</button>
+            <button class="tab-btn" data-tab="examples">Examples</button>
+            <button class="tab-btn" data-tab="diagrams">Diagrams</button>
+        </nav>
+
+        <!-- Tab Contents -->
+        <div class="tab-content">
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-pane active">
+                <h2>Overview</h2>
+
+                <div class="info-card">
+                    <h3>🌐 Base URLs</h3>
+                    <div class="url-grid">
+                        <div class="url-item">
+                            <span class="url-label">REST API:</span>
+                            <code class="code-inline">http://localhost:3000/api</code>
+                        </div>
+                        <div class="url-item">
+                            <span class="url-label">WebSocket:</span>
+                            <code class="code-inline">ws://localhost:3000</code>
+                        </div>
+                        <div class="url-item">
+                            <span class="url-label">Documentation:</span>
+                            <code class="code-inline">http://localhost:3000/docs</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>🔐 Authentication</h3>
+                    <p><strong>No authentication tokens required!</strong> The application uses session-based authentication through WebSocket connections.</p>
+                    <ul>
+                        <li>Player identity is managed via <code>socket.data.playerId</code></li>
+                        <li>Room master status is stored in the room state</li>
+                        <li>Reconnection uses playerId for session restoration</li>
+                    </ul>
+                </div>
+
+                <div class="info-card">
+                    <h3>🎮 Game Flow</h3>
+                    <div class="flow-diagram">
+                        <div class="flow-step">
+                            <span class="step-number">1</span>
+                            <div class="step-content">
+                                <strong>Create/Join Room</strong>
+                                <p>REST API → Get roomId & playerId</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <span class="step-number">2</span>
+                            <div class="step-content">
+                                <strong>Connect WebSocket</strong>
+                                <p>Use roomId & playerId to join</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <span class="step-number">3</span>
+                            <div class="step-content">
+                                <strong>Lobby Phase</strong>
+                                <p>Wait for players (4-8 players)</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <span class="step-number">4</span>
+                            <div class="step-content">
+                                <strong>Game Start</strong>
+                                <p>Master starts, roles assigned</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <span class="step-number">5</span>
+                            <div class="step-content">
+                                <strong>Play Rounds</strong>
+                                <p>Cut wires turn by turn</p>
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <span class="step-number">6</span>
+                            <div class="step-content">
+                                <strong>Game End</strong>
+                                <p>Bomb found or all defuses cut</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Architecture Tab -->
+            <div id="architecture" class="tab-pane">
+                <h2>System Architecture</h2>
+
+                <div class="architecture-section">
+                    <h3>🏗️ Backend Architecture</h3>
+                    <div class="architecture-diagram">
+                        <div class="mermaid">
+                            graph TB
+                                Client[Client Browser/Frontend]
+                                Client -->|HTTP| Express[Express Server]
+                                Client -->|WebSocket| Express
+
+                                subgraph Server["Server"]
+                                    Routes[Routes]
+                                    Controllers[Controllers]
+                                    SocketService[Socket Service]
+
+                                    Routes --> Controllers
+
+                                    GameEngine[Game Engine<br/>• Room Management<br/>• Game State<br/>• Wire Cutting Logic]
+
+                                    Controllers --> GameEngine
+                                    SocketService --> GameEngine
+
+                                    Managers[Managers<br/>• Room<br/>• Player<br/>• State]
+                                    Services[Services<br/>• Card<br/>• Role<br/>• Redis]
+                                    Communicator[Communicator Service<br/>• Broadcast<br/>• Events]
+
+                                    GameEngine --> Managers
+                                    GameEngine --> Services
+                                    GameEngine --> Communicator
+                                end
+
+                                Services --> Redis[(Redis Cache<br/>Room Storage)]
+
+                                style Client fill:#3b82f6,stroke:#60a5fa,color:#fff
+                                style Express fill:#10b981,stroke:#34d399,color:#fff
+                                style GameEngine fill:#f59e0b,stroke:#fbbf24,color:#fff
+                                style Redis fill:#ef4444,stroke:#f87171,color:#fff
+                        </div>
+                    </div>
+                </div>
+
+                <div class="architecture-section">
+                    <h3>📁 Directory Structure</h3>
+                    <pre class="code-block">
+backend/src/
+├── config/              # Configuration files
+├── controllers/         # HTTP request handlers
+│   └── room.controller.ts
+├── game/               # Core game logic
+│   └── GameEngine.ts
+├── handlers/           # Socket.IO event handlers
+│   ├── room.handler.ts
+│   ├── game.handler.ts
+│   ├── chat.handler.ts
+│   └── connection.handler.ts
+├── managers/           # Business logic managers
+│   ├── room.manager.ts
+│   ├── player.manager.ts
+│   └── game-state.manager.ts
+├── routes/             # Express route definitions
+│   └── api.routes.ts
+├── services/           # Utility services
+│   ├── socket.service.ts
+│   ├── communicator.service.ts
+│   ├── card.service.ts
+│   ├── role.service.ts
+│   └── redis.service.ts
+├── static/             # API documentation
+│   └── api-docs.html
+├── types/              # TypeScript definitions
+│   ├── game.types.ts
+│   ├── socket.types.ts
+│   └── service.types.ts
+└── index.ts            # Application entry point
+                    </pre>
+                </div>
+
+                <div class="architecture-section">
+                    <h3>🔄 Data Flow</h3>
+                    <div class="mermaid">
+flowchart TB
+    subgraph "REST API Flow"
+        C1[Client Request] --> RC1[POST /api/room/create]
+        RC1 --> RC2[RoomController.createRoom]
+        RC2 --> GE1[GameEngine.createRoom]
+        GE1 --> RM1[RoomManager.createRoom]
+        RM1 --> RS1[RedisService.saveRoom]
+        RS1 --> RES1[Return: roomId, playerId]
+    end
+
+    subgraph "WebSocket Flow"
+        C2[Client Connection] --> WS1[socket.emit 'join_room']
+        WS1 --> RH1[RoomHandler.handleJoinRoom]
+        RH1 --> GE2[GameEngine.joinRoom]
+        GE2 --> PM1[PlayerManager.addPlayer]
+        PM1 --> CS1[CommunicatorService.broadcast]
+        CS1 --> ALL[All clients receive update]
+    end
+
+    style C1 fill:#3b82f6,stroke:#60a5fa,color:#fff
+    style C2 fill:#3b82f6,stroke:#60a5fa,color:#fff
+    style RES1 fill:#10b981,stroke:#34d399,color:#fff
+    style ALL fill:#10b981,stroke:#34d399,color:#fff
+                    </div>
+                </div>
+            </div>
+
+            <!-- REST API Tab -->
+            <div id="rest" class="tab-pane">
+                <h2>REST API Endpoints</h2>
+
+                <!-- Health Check -->
+                <div class="endpoint-card" data-searchable="GET /health health check status">
+                    <div class="endpoint-header">
+                        <span class="method get">GET</span>
+                        <span class="path">/health</span>
+                        <span class="tag">Health</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="description">Check server health status</p>
+                        <div class="response-section">
+                            <h4>Response</h4>
+                            <pre class="code-block json">{
+  "status": "ok",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}</pre>
+                        </div>
+                        <div class="example-section">
+                            <h4>Example</h4>
+                            <pre class="code-block bash">curl http://localhost:3000/health</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Room -->
+                <div class="endpoint-card" data-searchable="POST /api/room/create room create displayName options">
+                    <div class="endpoint-header">
+                        <span class="method post">POST</span>
+                        <span class="path">/api/room/create</span>
+                        <span class="tag">Room</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="description">Create a new game room. The creator becomes the room master.</p>
+                        <div class="request-section">
+                            <h4>Request Body</h4>
+                            <pre class="code-block json">{
+  "displayName": "string (required)",
+  "options": {
+    "maxPlayers": 6,        // 4-8 players
+    "isPublic": true,       // Show in public rooms list
+    "wiresPerPlayer": 5,    // Initial wires per player
+    "timerPerPhase": null   // Optional timer in seconds
+  }
+}</pre>
+                        </div>
+                        <div class="response-section">
+                            <h4>Response</h4>
+                            <pre class="code-block json">{
+  "success": true,
+  "roomId": "ABCD12",
+  "playerId": "uuid-v4-string"
+}</pre>
+                        </div>
+                        <div class="example-section">
+                            <h4>Example</h4>
+                            <pre class="code-block javascript">const response = await fetch('http://localhost:3000/api/room/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    displayName: 'Alice',
+    options: { maxPlayers: 6, isPublic: true }
+  })
+});
+
+const { roomId, playerId } = await response.json();
+console.log(`Created room ${roomId} as player ${playerId}`);</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Join Room -->
+                <div class="endpoint-card" data-searchable="POST /api/room/join room join displayName avatar">
+                    <div class="endpoint-header">
+                        <span class="method post">POST</span>
+                        <span class="path">/api/room/join</span>
+                        <span class="tag">Room</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="description">Join an existing game room</p>
+                        <div class="request-section">
+                            <h4>Request Body</h4>
+                            <pre class="code-block json">{
+  "roomId": "ABCD12",
+  "displayName": "Player Name",
+  "avatar": "optional_avatar_url"
+}</pre>
+                        </div>
+                        <div class="response-section">
+                            <h4>Response</h4>
+                            <pre class="code-block json">{
+  "success": true,
+  "roomId": "ABCD12",
+  "playerId": "uuid-v4-string"
+}</pre>
+                        </div>
+                        <div class="example-section">
+                            <h4>Example</h4>
+                            <pre class="code-block javascript">const response = await fetch('http://localhost:3000/api/room/join', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    roomId: 'ABCD12',
+    displayName: 'Bob'
+  })
+});
+
+const { playerId } = await response.json();</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Get Room Status -->
+                <div class="endpoint-card" data-searchable="GET /api/room/:roomId/status room status players">
+                    <div class="endpoint-header">
+                        <span class="method get">GET</span>
+                        <span class="path">/api/room/:roomId/status</span>
+                        <span class="tag">Room</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="description">Get current room status and players</p>
+                        <div class="response-section">
+                            <h4>Response</h4>
+                            <pre class="code-block json">{
+  "id": "ABCD12",
+  "state": "lobby",  // lobby | in_game | finished
+  "players": [
+    {
+      "id": "uuid",
+      "displayName": "Alice",
+      "isConnected": true,
+      "isMaster": true,
+      "avatar": "url"
+    }
+  ],
+  "options": {
+    "maxPlayers": 6,
+    "isPublic": true,
+    "wiresPerPlayer": 5
+  },
+  "playerCount": 3,
+  "maxPlayers": 6
+}</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Get All Rooms -->
+                <div class="endpoint-card" data-searchable="GET /api/rooms list all public rooms">
+                    <div class="endpoint-header">
+                        <span class="method get">GET</span>
+                        <span class="path">/api/rooms</span>
+                        <span class="tag">Room</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="description">List all public rooms in lobby state</p>
+                        <div class="response-section">
+                            <h4>Response</h4>
+                            <pre class="code-block json">{
+  "rooms": [
+    {
+      "id": "ABCD12",
+      "playerCount": 3,
+      "maxPlayers": 6,
+      "createdAt": "2024-01-01T12:00:00.000Z"
+    }
+  ]
+}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WebSocket Events Tab -->
+            <div id="websocket" class="tab-pane">
+                <h2>WebSocket Events</h2>
+
+                <div class="ws-flow-diagram">
+                    <h3>Connection Flow</h3>
+                    <pre class="diagram">
+CLIENT                          SERVER
+  │                               │
+  ├──── connect ─────────────────▶│
+  │                               │
+  ├──── join_room ───────────────▶│
+  │                               │
+  │◀──── room_joined ──────────────┤
+  │                               │
+  │◀──── lobby_update ─────────────┤
+  │                               │
+  ├──── start_game ──────────────▶│ (master only)
+  │                               │
+  │◀──── game_started ─────────────┤
+  │◀──── private_hand ─────────────┤
+  │◀──── player_turn ──────────────┤
+  │                               │
+                    </pre>
+                </div>
+
+                <div class="ws-section">
+                    <h3>Client to Server Events</h3>
+
+                    <!-- create_room -->
+                    <div class="event-card client" data-searchable="create_room websocket client create room">
+                        <div class="event-header">
+                            <span class="event-name">create_room</span>
+                            <span class="event-direction">Client → Server</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Create a new game room via WebSocket</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "displayName": "string",
+  "options": {
+    "maxPlayers": 6,
+    "isPublic": true
+  }
+}</pre>
+                            </div>
+                            <div class="callback-section">
+                                <h4>Callback Response</h4>
+                                <pre class="code-block json">{
+  "success": true,
+  "roomId": "ABCD12",
+  "playerId": "uuid"
+}</pre>
+                            </div>
+                            <div class="example-section">
+                                <h4>Example</h4>
+                                <pre class="code-block javascript">socket.emit('create_room', {
+  displayName: 'Alice',
+  options: { maxPlayers: 6 }
+}, (response) => {
+  if (response.success) {
+    console.log('Room created:', response.roomId);
+  }
+});</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- join_room -->
+                    <div class="event-card client" data-searchable="join_room websocket client join">
+                        <div class="event-header">
+                            <span class="event-name">join_room</span>
+                            <span class="event-direction">Client → Server</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Join an existing room or reconnect</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "roomId": "ABCD12",
+  "displayName": "Player Name",
+  "avatar": "optional_url",
+  "playerId": "uuid_for_reconnect"  // Optional for reconnection
+}</pre>
+                            </div>
+                            <div class="example-section">
+                                <h4>Example</h4>
+                                <pre class="code-block javascript">// First time joining
+socket.emit('join_room', {
+  roomId: 'ABCD12',
+  displayName: 'Bob'
+});
+
+// Reconnecting
+socket.emit('join_room', {
+  roomId: 'ABCD12',
+  playerId: savedPlayerId,
+  displayName: 'Bob'
+});</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- start_game -->
+                    <div class="event-card client" data-searchable="start_game websocket client start">
+                        <div class="event-header">
+                            <span class="event-name">start_game</span>
+                            <span class="event-direction">Client → Server</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Start the game (master only, no auth token needed)</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "roomId": "ABCD12"
+}</pre>
+                            </div>
+                            <div class="example-section">
+                                <h4>Example</h4>
+                                <pre class="code-block javascript">// Only the master can start the game
+// Server validates via socket.data.playerId
+socket.emit('start_game', {
+  roomId: currentRoomId
+});</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- cut_wire -->
+                    <div class="event-card client" data-searchable="cut_wire websocket client wire cut">
+                        <div class="event-header">
+                            <span class="event-name">cut_wire</span>
+                            <span class="event-direction">Client → Server</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Cut a wire on another player's board</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "roomId": "ABCD12",
+  "targetPlayerId": "uuid",
+  "wireIndex": 0  // 0-4 initially
+}</pre>
+                            </div>
+                            <div class="example-section">
+                                <h4>Example</h4>
+                                <pre class="code-block javascript">socket.on('player_turn', (data) => {
+  if (data.playerId === myPlayerId) {
+    // It's my turn, I can cut a wire
+    socket.emit('cut_wire', {
+      roomId: currentRoomId,
+      targetPlayerId: selectedPlayer,
+      wireIndex: 2
+    });
+  }
+});</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ws-section">
+                    <h3>Server to Client Events</h3>
+
+                    <!-- lobby_update -->
+                    <div class="event-card server" data-searchable="lobby_update websocket server lobby players">
+                        <div class="event-header">
+                            <span class="event-name">lobby_update</span>
+                            <span class="event-direction">Server → Client</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Lobby state update when players join/leave</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "roomId": "ABCD12",
+  "players": [
+    {
+      "id": "uuid",
+      "displayName": "Alice",
+      "isConnected": true,
+      "isMaster": true
+    }
+  ],
+  "options": {
+    "maxPlayers": 6,
+    "isPublic": true
+  },
+  "masterId": "uuid"
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- game_started -->
+                    <div class="event-card server" data-searchable="game_started websocket server game start">
+                        <div class="event-header">
+                            <span class="event-name">game_started</span>
+                            <span class="event-direction">Server → Client</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Game has started, roles are assigned</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "roomId": "ABCD12",
+  "turnOrder": ["player1_id", "player2_id", "player3_id"],
+  "currentPlayerIndex": 0
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- private_hand -->
+                    <div class="event-card server" data-searchable="private_hand websocket server cards role">
+                        <div class="event-header">
+                            <span class="event-name">private_hand</span>
+                            <span class="event-direction">Server → Client</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Private information about player's role and cards</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "role": "good",  // "good" or "evil"
+  "wireCards": [
+    {
+      "position": 0,
+      "isOwn": true,
+      "type": "safe",    // "bomb", "safe", or "neutral"
+      "isCut": false
+    },
+    // ... more cards
+  ]
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- wire_cut_result -->
+                    <div class="event-card server" data-searchable="wire_cut_result websocket server wire result">
+                        <div class="event-header">
+                            <span class="event-name">wire_cut_result</span>
+                            <span class="event-direction">Server → Client</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Result of a wire cut action</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "cutterId": "uuid",
+  "targetId": "uuid",
+  "wireIndex": 0,
+  "cardType": "safe",       // Revealed card type
+  "defusesFound": 2,        // Total defuses found
+  "bombFound": false,       // Is bomb found?
+  "gameOver": false,        // Is game over?
+  "winner": null,           // "good" or "evil" if game over
+  "newGameState": {
+    "currentPlayerIndex": 1,
+    "currentRound": 1,
+    "defusesFound": 2,
+    "bombFound": false,
+    "totalDefusesNeeded": 4,
+    "wiresPerPlayer": 5,
+    "cardsRevealedThisRound": 1
+  }
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- game_over -->
+                    <div class="event-card server" data-searchable="game_over websocket server game end winner">
+                        <div class="event-header">
+                            <span class="event-name">game_over</span>
+                            <span class="event-direction">Server → Client</span>
+                        </div>
+                        <div class="event-body">
+                            <p class="description">Game has ended, reveal all roles</p>
+                            <div class="payload-section">
+                                <h4>Payload</h4>
+                                <pre class="code-block json">{
+  "winnerTeam": "good",  // "good" or "evil"
+  "players": [
+    {
+      "id": "uuid",
+      "name": "Alice",
+      "role": "good"
+    },
+    {
+      "id": "uuid",
+      "name": "Bob",
+      "role": "evil"
+    }
+  ]
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Types Tab -->
+            <div id="types" class="tab-pane">
+                <h2>TypeScript Types</h2>
+
+                <div class="type-diagram">
+                    <h3>Type Relationships</h3>
+                    <div class="mermaid">
+                        classDiagram
+                            class Room {
+                                +id: string
+                                +state: RoomState
+                                +players: Map~string,Player~
+                                +options: RoomOptions
+                                +gameState: GameState
+                                +masterId: string
+                            }
+
+                            class Player {
+                                +id: string
+                                +displayName: string
+                                +socketId: string
+                                +role: RoleType
+                                +wireCards: WireCard[]
+                                +isConnected: boolean
+                                +isMaster: boolean
+                            }
+
+                            class WireCard {
+                                +id: string
+                                +type: CardType
+                                +isCut: boolean
+                                +position: number
+                            }
+
+                            class GameState {
+                                +currentPlayerIndex: number
+                                +currentRound: number
+                                +defusesFound: number
+                                +bombFound: boolean
+                                +turnOrder: string[]
+                                +winner: string
+                            }
+
+                            Room "1" --> "*" Player : contains
+                            Room "1" --> "0..1" GameState : has
+                            Player "1" --> "*" WireCard : has
+                    </div>
+                </div>
+
+                <!-- Room Types -->
+                <div class="type-card" data-searchable="Room type interface players state options">
+                    <h3>Room</h3>
+                    <pre class="code-block typescript">interface Room {
+  id: string;                      // Unique room code (e.g., "ABCD12")
+  state: RoomState;                // Current room state
+  players: Map&lt;string, Player&gt;;    // All players in room
+  options: RoomOptions;            // Room configuration
+  gameState?: GameState;           // Game state (when in_game)
+  masterId?: string;               // Room master player ID
+  createdAt: Date;                 // Creation timestamp
+  updatedAt: Date;                 // Last update timestamp
+}</pre>
+                </div>
+
+                <div class="type-card" data-searchable="RoomState type enum lobby in_game finished">
+                    <h3>RoomState</h3>
+                    <pre class="code-block typescript">type RoomState =
+  | 'lobby'      // Waiting for players
+  | 'in_game'    // Game in progress
+  | 'finished';  // Game ended</pre>
+                </div>
+
+                <div class="type-card" data-searchable="Player type interface displayName role wireCards">
+                    <h3>Player</h3>
+                    <pre class="code-block typescript">interface Player {
+  id: string;                 // Unique player ID (UUID)
+  displayName: string;        // Player's display name
+  socketId: string;           // Current socket connection ID
+  role?: RoleType;            // Assigned role (when game starts)
+  wireCards: WireCard[];      // Player's wire cards
+  isConnected: boolean;       // Connection status
+  isMaster: boolean;          // Is room master?
+  avatar?: string;            // Optional avatar URL
+  declaration?: {             // Optional card declaration
+    safeWires: number;
+    hasBomb: boolean;
+  };
+}</pre>
+                </div>
+
+                <div class="type-card" data-searchable="GameState type interface currentRound defusesFound">
+                    <h3>GameState</h3>
+                    <pre class="code-block typescript">interface GameState {
+  currentPlayerIndex: number;      // Index in turnOrder array
+  currentRound: number;            // Current round number
+  defusesFound: number;            // Total defuses found
+  bombFound: boolean;              // Has bomb been cut?
+  turnOrder: string[];             // Player IDs in turn order
+  winner?: 'good' | 'evil';        // Winner (when game ends)
+  wiresPerPlayer: number;          // Current wires per player
+  totalDefusesNeeded: number;      // Defuses needed to win
+  cardsRevealedThisRound: number;  // Cards cut this round
+  lastTargetedPlayerId?: string;   // Last targeted player
+  playerDeclarations?: Record&lt;string, {
+    safeWires: number;
+    hasBomb: boolean;
+  }&gt;;
+}</pre>
+                </div>
+
+                <div class="type-card" data-searchable="WireCard type interface card position isCut">
+                    <h3>WireCard</h3>
+                    <pre class="code-block typescript">interface WireCard {
+  id: string;           // Unique card ID
+  type: CardType;       // Card type
+  isCut: boolean;       // Has been cut?
+  position: number;     // Position in hand (0-based)
+}
+
+type CardType =
+  | 'bomb'      // Ends game for evil team
+  | 'safe'      // Counts as defuse
+  | 'neutral';  // No effect</pre>
+                </div>
+
+                <div class="type-card" data-searchable="RoleType type enum good evil">
+                    <h3>RoleType</h3>
+                    <pre class="code-block typescript">type RoleType =
+  | 'good'   // Sherlock team - find defuses
+  | 'evil';  // Moriarty team - protect bomb</pre>
+                </div>
+            </div>
+
+            <!-- Examples Tab -->
+            <div id="examples" class="tab-pane">
+                <h2>Code Examples</h2>
+
+                <!-- Complete Flow Example -->
+                <div class="example-card">
+                    <h3>Complete Game Flow - No Authentication Required!</h3>
+                    <pre class="code-block javascript">import { io } from 'socket.io-client';
+
+// Step 1: Create a room via REST API
+async function createRoom(displayName) {
+  const response = await fetch('http://localhost:3000/api/room/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      displayName,
+      options: {
+        maxPlayers: 6,
+        isPublic: true
+      }
+    })
+  });
+
+  const data = await response.json();
+  // No token needed! Just roomId and playerId
+  return data;
+}
+
+// Step 2: Connect to WebSocket and join room
+function connectToGame(roomId, playerId, displayName) {
+  const socket = io('http://localhost:3000');
+
+  socket.on('connect', () => {
+    // Join the room - no authentication required!
+    socket.emit('join_room', {
+      roomId,
+      playerId,        // For reconnection
+      displayName
+    });
+  });
+
+  return socket;
+}
+
+// Step 3: Game event handlers
+function setupGameHandlers(socket) {
+  // Lobby updates
+  socket.on('lobby_update', (data) => {
+    console.log('Players in lobby:', data.players);
+    updateLobbyUI(data.players);
+  });
+
+  // Game started
+  socket.on('game_started', (data) => {
+    console.log('Game started! Turn order:', data.turnOrder);
+    startGameUI();
+  });
+
+  // Receive your private hand
+  socket.on('private_hand', (data) => {
+    console.log('My role:', data.role);
+    console.log('My cards:', data.wireCards);
+    updateHandUI(data);
+  });
+
+  // Current player's turn
+  socket.on('player_turn', (data) => {
+    if (data.playerId === myPlayerId) {
+      console.log("It's my turn!");
+      enableWireCutting();
+    } else {
+      console.log(`${data.playerName}'s turn`);
+      disableWireCutting();
+    }
+  });
+
+  // Wire cut results
+  socket.on('wire_cut_result', (data) => {
+    console.log(`Wire cut: ${data.cardType}`);
+    updateBoardUI(data);
+
+    if (data.gameOver) {
+      console.log(`Game over! ${data.winner} team wins!`);
+      showGameOverUI(data.winner);
+    }
+  });
+
+  // Game over - reveal all roles
+  socket.on('game_over', (data) => {
+    console.log('Game ended! Winner:', data.winnerTeam);
+    data.players.forEach(p => {
+      console.log(`${p.name} was ${p.role}`);
+    });
+  });
+}
+
+// Step 4: Game actions
+function startGame(socket, roomId) {
+  // Only master can start - server validates automatically
+  socket.emit('start_game', { roomId });
+}
+
+function cutWire(socket, roomId, targetPlayerId, wireIndex) {
+  // Only current player can cut - server validates automatically
+  socket.emit('cut_wire', {
+    roomId,
+    targetPlayerId,
+    wireIndex
+  });
+}
+
+// Main game flow
+async function playGame() {
+  // 1. Create room
+  const { roomId, playerId } = await createRoom('Alice');
+  console.log(`Created room ${roomId} as player ${playerId}`);
+
+  // 2. Connect WebSocket
+  const socket = connectToGame(roomId, playerId, 'Alice');
+  setupGameHandlers(socket);
+
+  // 3. Wait for other players...
+  // 4. Start game when ready (if master)
+  startGame(socket, roomId);
+
+  // 5. Play the game!
+  // The server handles all authentication via socket.data.playerId
+}</pre>
+                </div>
+
+                <!-- Reconnection Example -->
+                <div class="example-card">
+                    <h3>Handling Reconnection</h3>
+                    <pre class="code-block javascript">// Save game state to localStorage
+function saveGameState(roomId, playerId) {
+  localStorage.setItem('gameState', JSON.stringify({
+    roomId,
+    playerId,
+    timestamp: Date.now()
+  }));
+}
+
+// Reconnect to existing game
+function reconnectToGame() {
+  const savedState = localStorage.getItem('gameState');
+  if (!savedState) return false;
+
+  const { roomId, playerId } = JSON.parse(savedState);
+  const socket = io('http://localhost:3000');
+
+  socket.on('connect', () => {
+    // Reconnect with saved playerId - no token needed!
+    socket.emit('join_room', {
+      roomId,
+      playerId,  // This identifies us for reconnection
+      displayName: 'Returning Player'
+    });
+  });
+
+  socket.on('room_joined', (data) => {
+    console.log('Successfully reconnected!');
+    console.log('Room state:', data.room.state);
+
+    // Restore UI based on room state
+    if (data.room.state === 'in_game') {
+      restoreGameUI(data);
+    } else {
+      restoreLobbyUI(data);
+    }
+  });
+
+  return true;
+}
+
+// Try reconnection on page load
+window.addEventListener('load', () => {
+  if (!reconnectToGame()) {
+    // No saved game, show create/join options
+    showMainMenu();
+  }
+});</pre>
+                </div>
+
+                <!-- Python Example -->
+                <div class="example-card">
+                    <h3>Python Client</h3>
+                    <pre class="code-block python">import socketio
+import requests
+import json
+
+class TimeBombClient:
+    def __init__(self):
+        self.sio = socketio.Client()
+        self.base_url = 'http://localhost:3000'
+        self.room_id = None
+        self.player_id = None
+        self.setup_handlers()
+
+    def setup_handlers(self):
+        @self.sio.on('connect')
+        def on_connect():
+            print('Connected to server')
+
+        @self.sio.on('game_started')
+        def on_game_started(data):
+            print(f'Game started! Turn order: {data["turnOrder"]}')
+
+        @self.sio.on('private_hand')
+        def on_private_hand(data):
+            print(f'My role: {data["role"]}')
+            print(f'My cards: {data["wireCards"]}')
+
+        @self.sio.on('player_turn')
+        def on_player_turn(data):
+            if data['playerId'] == self.player_id:
+                print("It's my turn!")
+                # Implement wire cutting logic here
+
+        @self.sio.on('game_over')
+        def on_game_over(data):
+            print(f'Game over! {data["winnerTeam"]} team wins!')
+
+    def create_room(self, display_name):
+        """Create a new room - no authentication needed!"""
+        response = requests.post(
+            f'{self.base_url}/api/room/create',
+            json={
+                'displayName': display_name,
+                'options': {
+                    'maxPlayers': 6,
+                    'isPublic': True
+                }
+            }
+        )
+        data = response.json()
+        self.room_id = data['roomId']
+        self.player_id = data['playerId']
+        return data
+
+    def join_room(self, room_id, display_name):
+        """Join existing room"""
+        response = requests.post(
+            f'{self.base_url}/api/room/join',
+            json={
+                'roomId': room_id,
+                'displayName': display_name
+            }
+        )
+        data = response.json()
+        self.room_id = room_id
+        self.player_id = data['playerId']
+        return data
+
+    def connect_websocket(self):
+        """Connect to WebSocket server"""
+        self.sio.connect(self.base_url)
+
+        # Join room via WebSocket
+        self.sio.emit('join_room', {
+            'roomId': self.room_id,
+            'playerId': self.player_id
+        })
+
+    def start_game(self):
+        """Start game (master only)"""
+        self.sio.emit('start_game', {
+            'roomId': self.room_id
+        })
+
+    def cut_wire(self, target_player_id, wire_index):
+        """Cut a wire on target's board"""
+        self.sio.emit('cut_wire', {
+            'roomId': self.room_id,
+            'targetPlayerId': target_player_id,
+            'wireIndex': wire_index
+        })
+
+# Usage
+if __name__ == '__main__':
+    client = TimeBombClient()
+
+    # Create room
+    room_data = client.create_room('Python Player')
+    print(f'Created room: {room_data["roomId"]}')
+
+    # Connect WebSocket
+    client.connect_websocket()
+
+    # Wait for players and start game
+    input('Press Enter to start game...')
+    client.start_game()
+
+    # Keep connection alive
+    client.sio.wait()</pre>
+                </div>
+
+                <!-- cURL Examples -->
+                <div class="example-card">
+                    <h3>cURL Examples</h3>
+                    <pre class="code-block bash"># Health check
+curl http://localhost:3000/health
+
+# Create a room (no auth needed!)
+curl -X POST http://localhost:3000/api/room/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "displayName": "CurlPlayer",
+    "options": {
+      "maxPlayers": 6,
+      "isPublic": true
+    }
+  }'
+# Response: {"success":true,"roomId":"ABCD12","playerId":"uuid-here"}
+
+# Join a room
+curl -X POST http://localhost:3000/api/room/join \
+  -H "Content-Type: application/json" \
+  -d '{
+    "roomId": "ABCD12",
+    "displayName": "Player2"
+  }'
+
+# Get room status
+curl http://localhost:3000/api/room/ABCD12/status
+
+# List all public rooms
+curl http://localhost:3000/api/rooms</pre>
+                </div>
+            </div>
+
+            <!-- Diagrams Tab -->
+            <div id="diagrams" class="tab-pane">
+                <h2>System Diagrams</h2>
+
+                <div class="diagram-section">
+                    <h3>🎮 Game State Machine</h3>
+                    <div class="mermaid">
+stateDiagram-v2
+    [*] --> START
+    START --> LOBBY: create_room
+    LOBBY --> IN_GAME: start_game\n(min 4 players)
+
+    state IN_GAME {
+        [*] --> PlayerTurn
+        PlayerTurn --> CheckResult: cut_wire
+        CheckResult --> PlayerTurn: neutral/safe
+        CheckResult --> EndState: bomb/defuses
+    }
+
+    IN_GAME --> EVIL_WINS: bomb_found
+    IN_GAME --> GOOD_WINS: all_defuses
+    EVIL_WINS --> FINISHED
+    GOOD_WINS --> FINISHED
+    FINISHED --> [*]
+                    </div>
+                </div>
+
+                <div class="diagram-section">
+                    <h3>🔄 Round Flow</h3>
+                    <div class="mermaid">
+flowchart TD
+    Start[Round Start\n5 cards each] --> P1[Player 1 Turn]
+    P1 -->|cuts wire| P2[Player 2 Turn\nTarget chooses next]
+    P2 -->|cuts wire| P3[Player 3 Turn\nTarget chooses next]
+    P3 -->|cuts wire| Continue[Continue until\nall players cut]
+    Continue --> Complete[Round Complete\n5s countdown]
+    Complete --> Redistribute[Redistribute Cards\n4 cards each]
+    Redistribute --> NextRound[Next Round]
+
+    style Start fill:#10b981,stroke:#34d399,color:#fff
+    style Complete fill:#f59e0b,stroke:#fbbf24,color:#fff
+    style Redistribute fill:#3b82f6,stroke:#60a5fa,color:#fff
+                    </div>
+                </div>
+
+                <div class="diagram-section">
+                    <h3>📊 Player Distribution</h3>
+                    <pre class="diagram">
+Players │ Good Team │ Evil Team │ Safe Wires │ Bombs
+────────┼───────────┼───────────┼────────────┼───────
+   4    │    2-3    │    1-2    │     4      │   1
+   5    │     3     │     2     │     5      │   1
+   6    │     4     │     2     │     6      │   1
+   7    │    4-5    │    2-3    │     7      │   1
+   8    │     5     │     3     │     8      │   1
+                    </pre>
+                </div>
+
+                <div class="diagram-section">
+                    <h3>🔌 WebSocket Connection Lifecycle</h3>
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+
+    C->>S: POST /api/room/create
+    S-->>C: { roomId, playerId }
+
+    C->>S: WebSocket Connect
+    C->>S: join_room { roomId, playerId }
+    S-->>C: room_joined
+
+    Note over C,S: Game Events Flow
+    S-->>C: lobby_update
+    S-->>C: game_started
+    S-->>C: receive_hand
+    S-->>C: wire_cut_result
+
+    C->>S: disconnect
+
+    Note over C,S: Reconnect Later
+
+    C->>S: WebSocket Connect
+    C->>S: join_room (saved playerId)
+    S-->>C: room_joined + state
+    S-->>C: game_state (if in game)
+    S-->>C: receive_hand (if in game)
+                    </div>
+                </div>
+
+                <div class="diagram-section">
+                    <h3>🏗️ Component Interaction</h3>
+                    <div class="mermaid">
+                        graph TB
+                            subgraph Controllers
+                                RC[RoomController]
+                            end
+
+                            subgraph "Game Engine"
+                                GE[GameEngine<br/>• createRoom<br/>• joinRoom<br/>• startGame<br/>• cutWire<br/>No authentication needed!]
+                            end
+
+                            subgraph ManagersAndServices["Managers & Services"]
+                                RM[Room<br/>Manager]
+                                PM[Player<br/>Manager]
+                                CS[Card<br/>Service]
+                                RS[Role<br/>Service]
+                                COM[Communicator<br/>Service]
+                            end
+
+                            RC --> GE
+                            GE --> RM
+                            GE --> PM
+                            GE --> CS
+                            GE --> RS
+                            GE --> COM
+
+                            style GE fill:#f59e0b,stroke:#fbbf24
+                            style RC fill:#3b82f6,stroke:#60a5fa
+                            style COM fill:#10b981,stroke:#34d399
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

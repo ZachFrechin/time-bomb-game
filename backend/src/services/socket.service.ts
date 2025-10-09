@@ -1,532 +1,83 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server } from 'http';
-import { signToken } from '../utils/jwt';
 import { config } from '../config';
-import { gameEngine } from '../game/GameEngine';
-import { redisService } from './redis.service';
+import { roomHandler } from '../handlers/room.handler';
+import { gameHandler } from '../handlers/game.handler';
+import { chatHandler } from '../handlers/chat.handler';
+import { connectionHandler } from '../handlers/connection.handler';
+import { communicatorService } from './communicator.service';
 import {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
+    ClientToServerEvents,
+    ServerToClientEvents,
+    InterServerEvents,
+    SocketData,
 } from '../types/socket.types';
 
 export class SocketService {
-  private io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+    private io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
-  constructor(server: Server) {
-    this.io = new SocketIOServer(server, {
-      cors: {
-        origin: config.cors.origin,
-        credentials: config.cors.credentials,
-      },
-    });
-
-    this.setupEventHandlers();
-  }
-
-  private setupEventHandlers() {
-    this.io.on('connection', (socket) => {
-      console.log(`Client connected: ${socket.id}`);
-
-      socket.on('create_room', async (data, callback) => {
-        try {
-          const room = gameEngine.createRoom(data.displayName, data.options);
-          const playerId = Array.from(room.players.keys())[0];
-          const player = room.players.get(playerId)!;
-          player.socketId = socket.id;
-
-          const token = signToken({ playerId, roomId: room.id, isMaster: true });
-
-          socket.join(room.id);
-          socket.data.playerId = playerId;
-          socket.data.roomId = room.id;
-          socket.data.displayName = data.displayName || player.displayName;
-
-          await redisService.saveRoom(room);
-          await redisService.savePlayerSession(playerId, {
-            roomId: room.id,
-            token,
-            displayName: data.displayName,
-          });
-
-          if (callback) {
-            callback({ success: true, roomId: room.id, token, playerId });
-          }
-
-          this.broadcastLobbyUpdate(room.id);
-        } catch (error) {
-          console.error('Error creating room:', error);
-          callback({ success: false, error: 'Failed to create room' });
-        }
-      });
-
-      socket.on('join_room', async (data, callback) => {
-        try {
-          let room = gameEngine.getRoom(data.roomId);
-
-          if (!room) {
-            room = await redisService.getRoom(data.roomId) || undefined;
-            if (!room) {
-              if (callback) {
-                callback({ success: false, error: 'Room not found' });
-              }
-              return;
-            }
-          }
-
-          let playerId: string;
-          let isReconnection = false;
-          let player: any;
-
-          // Check if player is reconnecting with existing playerId
-          if (data.playerId && room.players.has(data.playerId)) {
-            // Reconnection - update socket ID
-            playerId = data.playerId;
-            player = room.players.get(playerId)!;
-            player.socketId = socket.id;
-            player.isConnected = true;
-            isReconnection = true;
-            console.log(`Player ${player.displayName} reconnected to room ${room.id}`);
-          } else {
-            // New player joining
-            const displayName = data.displayName || data.playerName || 'Player';
-            const result = gameEngine.joinRoom(data.roomId, displayName, data.avatar);
-
-            if (!result) {
-              if (callback) {
-                callback({ success: false, error: 'Cannot join room' });
-              }
-              return;
-            }
-
-            playerId = result.playerId;
-            player = room.players.get(playerId)!;
-            player.socketId = socket.id;
-          }
-
-          const token = signToken({ playerId, roomId: room.id, isMaster: false });
-
-          socket.join(room.id);
-          socket.data.playerId = playerId;
-          socket.data.roomId = room.id;
-          socket.data.displayName = data.displayName || player.displayName;
-
-          await redisService.saveRoom(room);
-          await redisService.savePlayerSession(playerId, {
-            roomId: room.id,
-            token,
-            displayName: data.displayName,
-          });
-
-          if (callback) {
-            callback({ success: true, roomId: room.id, token, playerId });
-          }
-
-          if (isReconnection) {
-            // Send full game state on reconnection
-            const player = room.players.get(playerId)!;
-
-            // Send room state
-            socket.emit('room_joined', {
-              room: {
-                id: room.id,
-                state: room.state,
-                masterId: room.masterId,
-                players: Array.from(room.players.values()).map(p => ({
-                  id: p.id,
-                  displayName: p.displayName,
-                  isConnected: p.isConnected,
-                  isMaster: p.isMaster,
-                })),
-                options: room.options,
-              },
-              playerId,
-              token,
-            });
-
-            // If in game, send game state
-            if (room.state === 'in_game' && room.gameState) {
-              // Send game state with declarations
-              socket.emit('game_state_update', {
-                gameState: {
-                  ...room.gameState,
-                  playerDeclarations: room.gameState.playerDeclarations || {}
-                },
-              });
-
-              // Send private hand
-              if (player.wireCards) {
-                socket.emit('private_hand', {
-                  role: player.role!,
-                  wireCards: player.wireCards.map((card, index) => ({
-                    position: index,
-                    isOwn: true,
-                    type: card.type,
-                    isCut: card.isCut,
-                  })),
-                });
-              }
-
-              // Send players with their cards
-              socket.emit('players_update', {
-                players: Array.from(room.players.values()).map(p => ({
-                  id: p.id,
-                  displayName: p.displayName,
-                  isConnected: p.isConnected,
-                  isMaster: p.isMaster,
-                  wireCards: p.wireCards?.map(card => ({
-                    position: card.position,
-                    isCut: card.isCut,
-                    type: card.isCut ? card.type : undefined,
-                  })),
-                })),
-              });
-
-              // Send current turn info
-              if (room.gameState?.turnOrder && room.gameState.currentPlayerIndex >= 0) {
-                const currentPlayerId = room.gameState.turnOrder[room.gameState.currentPlayerIndex];
-                const currentPlayer = room.players.get(currentPlayerId);
-                if (currentPlayer) {
-                  socket.emit('player_turn', {
-                    playerId: currentPlayerId,
-                    playerName: currentPlayer.displayName,
-                  });
-                }
-              }
-
-              // Send declarations after a small delay to ensure client is ready
-              setTimeout(() => {
-                if (room.gameState?.playerDeclarations) {
-                  console.log('Sending declarations to reconnecting player:', room.gameState.playerDeclarations);
-                  Object.entries(room.gameState.playerDeclarations).forEach(([pid, declaration]) => {
-                    socket.emit('player_declared', {
-                      playerId: pid,
-                      declaration: declaration
-                    });
-                  });
-                }
-              }, 100);
-
-              // Notify others of reconnection
-              socket.to(room.id).emit('player_reconnected', {
-                playerId,
-                playerName: player.displayName,
-              });
-            }
-          } else {
-            socket.to(room.id).emit('joined_room', {
-              roomId: room.id,
-              playerId,
-            });
-          }
-
-          // Only broadcast lobby update if we're in lobby state
-          // In game, we don't want to override player cards
-          if (room.state === 'lobby') {
-            this.broadcastLobbyUpdate(room.id);
-          }
-        } catch (error) {
-          console.error('Error joining room:', error);
-          if (callback) {
-            callback({ success: false, error: 'Failed to join room' });
-          }
-        }
-      });
-
-      socket.on('start_game', async (data) => {
-        try {
-          const room = gameEngine.getRoom(data.roomId);
-          if (!room) return;
-
-          const success = gameEngine.startGame(data.roomId);
-
-          if (success && room.gameState) {
-            await redisService.saveRoom(room);
-
-            this.io.to(room.id).emit('game_started', {
-              roomId: room.id,
-              turnOrder: room.gameState.turnOrder,
-              currentPlayerIndex: room.gameState.currentPlayerIndex,
-            });
-
-            room.players.forEach((player, _playerId) => {
-              const playerSocket = this.io.sockets.sockets.get(player.socketId);
-              if (playerSocket) {
-                playerSocket.emit('private_hand', {
-                  role: player.role!,
-                  wireCards: player.wireCards.map((card, index) => ({
-                    position: index,
-                    isOwn: true,
-                    type: card.type,  // Send the card type so player can see their own cards
-                    isCut: card.isCut,
-                  })),
-                });
-              }
-            });
-
-            const currentPlayerId = room.gameState.turnOrder[room.gameState.currentPlayerIndex];
-            const currentPlayer = room.players.get(currentPlayerId);
-
-            this.io.to(room.id).emit('player_turn', {
-              playerId: currentPlayerId,
-              playerName: currentPlayer?.displayName || '',
-            });
-          }
-        } catch (error) {
-          console.error('Error starting game:', error);
-          socket.emit('error', { code: 'START_FAILED', message: 'Failed to start game' });
-        }
-      });
-
-      socket.on('cut_wire', async (data) => {
-        console.log('Cut wire request:', data, 'Socket data:', socket.data);
-        try {
-          const room = gameEngine.getRoom(data.roomId);
-          if (!room) {
-            console.error('Room not found:', data.roomId);
-            return;
-          }
-
-          const playerId = socket.data.playerId;
-          if (!playerId) {
-            console.error('No playerId in socket data');
-            return;
-          }
-
-          const result = gameEngine.cutWire(
-            data.roomId,
-            playerId,
-            data.targetPlayerId,
-            data.wireIndex
-          );
-
-          if (result) {
-            await redisService.saveRoom(room);
-
-            // Send wire cut result
-            this.io.to(room.id).emit('wire_cut_result', {
-              ...result,
-              newGameState: {
-                currentPlayerIndex: room.gameState?.currentPlayerIndex,
-                currentRound: room.gameState?.currentRound,
-                defusesFound: room.gameState?.defusesFound,
-                bombFound: room.gameState?.bombFound,
-                totalDefusesNeeded: room.gameState?.totalDefusesNeeded,
-                wiresPerPlayer: room.gameState?.wiresPerPlayer,
-                cardsRevealedThisRound: room.gameState?.cardsRevealedThisRound,
-              },
-            });
-
-            // Send updated player states separately
-            this.io.to(room.id).emit('players_update', {
-              players: Array.from(room.players.values()).map(p => ({
-                id: p.id,
-                displayName: p.displayName,
-                isConnected: p.isConnected,
-                isMaster: p.isMaster,
-                wireCards: p.wireCards.map(card => ({
-                  position: card.position,
-                  isCut: card.isCut,
-                  type: card.isCut ? card.type : undefined, // Only show type if cut
-                })),
-              })),
-            });
-
-            // Check if round changed (redistribution happened)
-            if (room.gameState && room.gameState.cardsRevealedThisRound === 0 && room.gameState.currentRound > 1) {
-              // Cards were redistributed, send new private hands
-              room.players.forEach((player) => {
-                const playerSocket = this.io.sockets.sockets.get(player.socketId);
-                if (playerSocket) {
-                  playerSocket.emit('private_hand', {
-                    role: player.role!,
-                    wireCards: player.wireCards.map((card, index) => ({
-                      position: index,
-                      isOwn: true,
-                      type: card.type,
-                      isCut: card.isCut,
-                    })),
-                  });
-                }
-              });
-            }
-
-            if (result.gameOver && result.winner) {
-              const players = Array.from(room.players.values()).map(p => ({
-                id: p.id,
-                name: p.displayName,
-                role: p.role!,
-              }));
-
-              this.io.to(room.id).emit('game_over', {
-                winnerTeam: result.winner,
-                players,
-              });
-            } else if (room.gameState) {
-              const nextPlayerId = room.gameState.turnOrder[room.gameState.currentPlayerIndex];
-              const nextPlayer = room.players.get(nextPlayerId);
-
-              this.io.to(room.id).emit('player_turn', {
-                playerId: nextPlayerId,
-                playerName: nextPlayer?.displayName || '',
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Error cutting wire:', error);
-          socket.emit('error', { code: 'CUT_FAILED', message: 'Failed to cut wire' });
-        }
-      });
-
-      socket.on('send_chat', (data) => {
-        if (!socket.data.roomId || socket.data.roomId !== data.roomId) return;
-
-        this.io.to(data.roomId).emit('chat_message', {
-          playerId: socket.data.playerId || '',
-          playerName: socket.data.displayName || 'Unknown',
-          message: data.message,
-          timestamp: Date.now(),
-        });
-      });
-
-      socket.on('kick_player', async (data) => {
-        try {
-          const success = gameEngine.kickPlayer(data.roomId, data.playerId);
-
-          if (success) {
-            const room = gameEngine.getRoom(data.roomId);
-            if (room) {
-              await redisService.saveRoom(room);
-
-              const targetSocket = Array.from(this.io.sockets.sockets.values())
-                .find(s => s.data.playerId === data.playerId);
-
-              if (targetSocket) {
-                targetSocket.leave(data.roomId);
-                targetSocket.emit('player_kicked', {
-                  playerId: data.playerId,
-                  displayName: targetSocket.data.displayName || '',
-                });
-              }
-
-              this.broadcastLobbyUpdate(data.roomId);
-            }
-          }
-        } catch (error) {
-          console.error('Error kicking player:', error);
-        }
-      });
-
-      socket.on('leave_room', async (data) => {
-        try {
-          const room = gameEngine.getRoom(data.roomId);
-          if (room && socket.data.playerId) {
-            room.players.delete(socket.data.playerId);
-            socket.leave(data.roomId);
-
-            if (room.players.size === 0) {
-              gameEngine.removeRoom(data.roomId);
-              await redisService.deleteRoom(data.roomId);
-            } else {
-              await redisService.saveRoom(room);
-              this.broadcastLobbyUpdate(data.roomId);
-            }
-          }
-        } catch (error) {
-          console.error('Error leaving room:', error);
-        }
-      });
-
-      socket.on('declare_wires', async (data: { safeWires: number; hasBomb: boolean }, callback?: any) => {
-        if (!socket.data.roomId || !socket.data.playerId) {
-          if (callback) callback({ success: false, error: 'No room or player data' });
-          return;
-        }
-
-        const room = gameEngine.getRoom(socket.data.roomId);
-        if (!room) {
-          if (callback) callback({ success: false, error: 'Room not found' });
-          return;
-        }
-
-        // Store declaration in game state
-        if (!room.gameState) {
-          if (callback) callback({ success: false, error: 'Game not started' });
-          return;
-        }
-
-        if (!room.gameState.playerDeclarations) {
-          room.gameState.playerDeclarations = {};
-        }
-
-        room.gameState.playerDeclarations[socket.data.playerId] = {
-          safeWires: data.safeWires,
-          hasBomb: data.hasBomb
-        };
-
-        // Broadcast to all players
-        this.io.to(socket.data.roomId).emit('player_declared', {
-          playerId: socket.data.playerId,
-          declaration: {
-            safeWires: data.safeWires,
-            hasBomb: data.hasBomb
-          }
+    constructor(server: Server) {
+        this.io = new SocketIOServer(server, {
+            cors: {
+                origin: config.cors.origin,
+                credentials: config.cors.credentials,
+            },
         });
 
-        await redisService.saveRoom(room);
-        if (callback) callback({ success: true });
-      });
+        // Initialize communicator with Socket.IO instance
+        communicatorService.initialize(this.io);
 
-      socket.on('disconnect', async () => {
-        console.log(`Client disconnected: ${socket.id}`);
+        this.setupEventHandlers();
+    }
 
-        if (socket.data.roomId && socket.data.playerId) {
-          const room = gameEngine.getRoom(socket.data.roomId);
-          if (room) {
-            const player = room.players.get(socket.data.playerId);
-            if (player) {
-              player.isConnected = false;
-              await redisService.saveRoom(room);
+    /**
+     * Setup all socket event handlers
+     */
+    private setupEventHandlers(): void {
+        this.io.on('connection', (socket) => {
+            // Connection events
+            connectionHandler.handleConnection(socket);
 
-              socket.to(room.id).emit('player_disconnected', {
-                playerId: socket.data.playerId,
-                displayName: socket.data.displayName || '',
-              });
-            }
-          }
-        }
-      });
-    });
-  }
+            // Room events
+            socket.on('create_room', (data, callback) =>
+                roomHandler.handleCreateRoom(socket, data, callback));
 
-  private broadcastLobbyUpdate(roomId: string) {
-    const room = gameEngine.getRoom(roomId);
-    if (!room) return;
+            socket.on('join_room', (data, callback) =>
+                roomHandler.handleJoinRoom(socket, data, callback));
 
-    const players = Array.from(room.players.values()).map(p => ({
-      id: p.id,
-      displayName: p.displayName,
-      isConnected: p.isConnected,
-      isMaster: p.isMaster,
-      avatar: p.avatar,
-    }));
+            socket.on('leave_room', (data) =>
+                roomHandler.handleLeaveRoom(socket, data));
 
-    const masterId = Array.from(room.players.values())
-      .find(p => p.isMaster)?.id || '';
+            socket.on('kick_player', (data) =>
+                roomHandler.handleKickPlayer(socket, data));
 
-    this.io.to(roomId).emit('lobby_update', {
-      roomId,
-      players: players as any,
-      options: room.options,
-      masterId,
-    });
-  }
+            // Game events
+            socket.on('start_game', (data) =>
+                gameHandler.handleStartGame(socket, data));
 
-  getIO() {
-    return this.io;
-  }
+            socket.on('cut_wire', (data) =>
+                gameHandler.handleCutWire(socket, data));
+
+            socket.on('declare_wires', (data, callback) =>
+                gameHandler.handleDeclareWires(socket, data, callback));
+
+            // Chat events
+            socket.on('send_chat', (data) =>
+                chatHandler.handleSendChat(socket, data));
+
+            // Disconnection
+            socket.on('disconnect', () =>
+                connectionHandler.handleDisconnect(socket));
+        });
+    }
+
+    /**
+     * Get Socket.IO instance
+     */
+    getIO(): SocketIOServer {
+        return this.io;
+    }
 }
 
-// Export singleton instance for use in GameEngine
+// Export singleton instance
 export let socketServiceInstance: SocketService | null = null;

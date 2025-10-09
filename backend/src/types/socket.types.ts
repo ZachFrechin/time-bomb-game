@@ -1,7 +1,7 @@
 import { Player, RoleType, WireCutResult } from './game.types';
 
 export interface ServerToClientEvents {
-  room_created: (data: { roomId: string; token: string }) => void;
+  room_created: (data: { roomId: string }) => void;
   joined_room: (data: { roomId: string; playerId: string }) => void;
   join_error: (data: { error: string }) => void;
   lobby_update: (data: {
@@ -44,7 +44,6 @@ export interface ServerToClientEvents {
   room_joined: (data: {
     room: any;
     playerId: string;
-    token: string;
   }) => void;
   game_state_update: (data: {
     gameState: any;
@@ -67,12 +66,12 @@ export interface ClientToServerEvents {
     avatar?: string;
     playerId?: string;
   }, callback?: (response: any) => void) => void;
-  start_game: (data: { roomId: string; masterToken: string }) => void;
+  start_game: (data: { roomId: string }) => void;
   cut_wire: (data: { roomId: string; targetPlayerId: string; wireIndex: number }) => void;
   send_chat: (data: { roomId: string; message: string }) => void;
-  kick_player: (data: { roomId: string; playerId: string; masterToken: string }) => void;
+  kick_player: (data: { roomId: string; playerId: string }) => void;
   leave_room: (data: { roomId: string }) => void;
-  reconnect_attempt: (data: { roomId: string; playerId: string; token: string }) => void;
+  reconnect_attempt: (data: { roomId: string; playerId: string }) => void;
   declare_wires: (data: { safeWires: number; hasBomb: boolean }, callback?: (response: any) => void) => void;
 }
 

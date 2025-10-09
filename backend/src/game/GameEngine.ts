@@ -1,460 +1,276 @@
 import { v4 as uuidv4 } from 'uuid';
-import {
-  Room,
-  Player,
-  RoomOptions,
-  GameState,
-  WireCard,
-  CardType,
-  RoleType,
-  WireCutResult,
-} from '../types/game.types';
+import { Room, RoomOptions, WireCutResult, CardType } from '../types/game.types';
 import { config } from '../config';
+import { roomManager } from '../managers/room.manager';
+import { playerManager } from '../managers/player.manager';
+import { gameStateManager } from '../managers/game-state.manager';
+import { cardService } from '../services/card.service';
+import { roleService } from '../services/role.service';
+import { communicatorService } from '../services/communicator.service';
 
 export class GameEngine {
-  private rooms: Map<string, Room> = new Map();
-
-  generateRoomId(): string {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let roomId = '';
-    for (let i = 0; i < config.game.roomIdLength; i++) {
-      roomId += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return roomId;
-  }
-
-  createRoom(displayName: string, options?: Partial<RoomOptions>): Room {
-    const roomId = this.generateRoomId();
-    const playerId = uuidv4();
-
-    const defaultOptions: RoomOptions = {
-      maxPlayers: 6,
-      isPublic: true,
-      wiresPerPlayer: config.game.defaultWiresPerPlayer,
-      timerPerPhase: undefined,
-    };
-
-    const roomOptions = { ...defaultOptions, ...options };
-
-    const master: Player = {
-      id: playerId,
-      displayName,
-      socketId: '',
-      wireCards: [],
-      isConnected: true,
-      isMaster: true,
-    };
-
-    const room: Room = {
-      id: roomId,
-      state: 'lobby',
-      players: new Map([[playerId, master]]),
-      options: roomOptions,
-      masterId: playerId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    this.rooms.set(roomId, room);
-    return room;
-  }
-
-  joinRoom(roomId: string, displayName: string, avatar?: string): { room: Room; playerId: string } | null {
-    const room = this.rooms.get(roomId);
-    if (!room) return null;
-    if (room.state !== 'lobby') return null;
-
-    // Vérifier si le joueur existe déjà par nom
-    const existingPlayer = Array.from(room.players.values()).find(p => p.displayName === displayName);
-    if (existingPlayer) {
-      // Réactiver le joueur existant
-      existingPlayer.isConnected = true;
-      room.updatedAt = new Date();
-      return { room, playerId: existingPlayer.id };
+    /**
+     * Create a new room
+     */
+    createRoom(displayName: string, options?: Partial<RoomOptions>): Room {
+        const playerId = uuidv4();
+        const room = roomManager.createRoom(playerId, displayName, options);
+        return room;
     }
 
-    if (room.players.size >= room.options.maxPlayers) return null;
+    /**
+     * Join an existing room
+     */
+    joinRoom(roomId: string, displayName: string, avatar?: string): { room: Room; playerId: string } | null {
+        const room = roomManager.getRoom(roomId);
+        if (!room) return null;
 
-    const playerId = uuidv4();
-    const player: Player = {
-      id: playerId,
-      displayName,
-      socketId: '',
-      wireCards: [],
-      isConnected: true,
-      isMaster: false,
-      avatar,
-    };
-
-    room.players.set(playerId, player);
-    room.updatedAt = new Date();
-
-    return { room, playerId };
-  }
-
-  private calculateGameParameters(playerCount: number) {
-    // Moriarty count based on new rules
-    let evilCount: number;
-    if (playerCount <= 3) {
-      evilCount = 1;
-    } else if (playerCount === 4) {
-      // Random between 1 and 2 for 4 players
-      evilCount = Math.random() < 0.5 ? 1 : 2;
-    } else if (playerCount === 5) {
-      evilCount = 2;
-    } else {
-      evilCount = 2; // 6+ players
-    }
-
-    const goodCount = playerCount - evilCount;
-    const bombCount = 1;
-    const safeWireCount = playerCount; // Always equals number of players
-    const totalCards = playerCount * 5; // 5 cards per player initially
-    const neutralCount = totalCards - bombCount - safeWireCount;
-
-    return {
-      evilCount,
-      goodCount,
-      safeWireCount,
-      bombCount,
-      neutralCount,
-      totalCards,
-    };
-  }
-
-  private distributeRoles(playerCount: number): RoleType[] {
-    const { evilCount, goodCount } = this.calculateGameParameters(playerCount);
-    const roles: RoleType[] = [];
-
-    for (let i = 0; i < evilCount; i++) {
-      roles.push('evil');
-    }
-    for (let i = 0; i < goodCount; i++) {
-      roles.push('good');
-    }
-
-    return this.shuffle(roles);
-  }
-
-  private createWireDeck(playerCount: number): CardType[] {
-    const { safeWireCount, bombCount, neutralCount } = this.calculateGameParameters(playerCount);
-    const deck: CardType[] = [];
-
-    // Always 1 bomb
-    for (let i = 0; i < bombCount; i++) {
-      deck.push('bomb');
-    }
-
-    // Safe wires = number of players
-    for (let i = 0; i < safeWireCount; i++) {
-      deck.push('safe');
-    }
-
-    // Remaining cards are neutral
-    for (let i = 0; i < neutralCount; i++) {
-      deck.push('neutral');
-    }
-
-    return this.shuffle(deck);
-  }
-
-  private shuffle<T>(array: T[]): T[] {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  }
-
-  private redistributeCards(room: Room): boolean {
-    if (!room.gameState) return false;
-
-    const players = Array.from(room.players.values());
-    const gameState = room.gameState;
-
-    // Collect all uncut cards
-    const uncutCards: CardType[] = [];
-    players.forEach(player => {
-      player.wireCards.forEach(wire => {
-        if (!wire.isCut) {
-          uncutCards.push(wire.type);
+        // Check if can join
+        const { canJoin, reason } = roomManager.canJoinRoom(room);
+        if (!canJoin) {
+            console.log(`Cannot join room: ${reason}`);
+            return null;
         }
-      });
-    });
 
-    // Calculate new cards per player (reduce by 1 each round)
-    const newCardsPerPlayer = Math.max(1, gameState.wiresPerPlayer - 1);
-    const totalCardsNeeded = players.length * newCardsPerPlayer;
+        // Check for existing player
+        const existingPlayer = playerManager.findPlayerByName(room, displayName);
+        if (existingPlayer) {
+            // Reconnect existing player
+            existingPlayer.isConnected = true;
+            roomManager.touchRoom(roomId);
+            return { room, playerId: existingPlayer.id };
+        }
 
-    // Check if we have enough cards to continue
-    if (uncutCards.length < totalCardsNeeded) {
-      // Not enough cards - evil wins
-      return false;
+        // Create new player
+        const player = playerManager.createPlayer(displayName, false, avatar);
+        playerManager.addPlayerToRoom(room, player);
+
+        return { room, playerId: player.id };
     }
 
-    // Shuffle the uncut cards
-    const shuffledCards = this.shuffle(uncutCards);
+    /**
+     * Start the game
+     */
+    startGame(roomId: string): boolean {
+        const room = roomManager.getRoom(roomId);
+        if (!room) return false;
 
-    // Redistribute cards to players
-    players.forEach(player => {
-      player.wireCards = [];
-      for (let i = 0; i < newCardsPerPlayer; i++) {
-        const cardType = shuffledCards.pop()!;
-        const wireCard: WireCard = {
-          id: uuidv4(),
-          type: cardType,
-          isCut: false,
-          position: i,
+        // Check if can start
+        const { canStart, reason } = roomManager.canStartGame(room);
+        if (!canStart) {
+            console.log(`Cannot start game: ${reason}`);
+            return false;
+        }
+
+        const players = playerManager.getPlayersArray(room);
+
+        // Assign roles
+        roleService.assignRolesToPlayers(players);
+
+        // Distribute initial cards
+        cardService.distributeCardsToPlayers(players, 5);
+
+        // Create game state
+        const gameState = gameStateManager.createInitialState(players, players.length);
+        room.gameState = gameState;
+
+        // Update room state
+        roomManager.updateRoomState(roomId, 'in_game');
+
+        return true;
+    }
+
+    /**
+     * Handle wire cutting
+     */
+    cutWire(roomId: string, cutterId: string, targetId: string, wireIndex: number): WireCutResult | null {
+        const room = roomManager.getRoom(roomId);
+        if (!room || !room.gameState) return null;
+        if (room.state !== 'in_game') return null;
+
+        // Validate turn
+        if (!gameStateManager.isPlayerTurn(room.gameState, cutterId)) {
+            console.log('Not player turn');
+            return null;
+        }
+
+        // Validate target
+        if (cutterId === targetId) {
+            console.log('Cannot cut own wire');
+            return null;
+        }
+
+        const targetPlayer = playerManager.getPlayer(room, targetId);
+        if (!targetPlayer) return null;
+
+        // Validate wire
+        const wire = targetPlayer.wireCards[wireIndex];
+        if (!wire || wire.isCut) return null;
+
+        // Cut the wire
+        wire.isCut = true;
+        const cardType = wire.type;
+
+        // Update game state
+        gameStateManager.recordWireCut(room.gameState, targetId);
+
+        // Process result
+        const result = this.processWireCutResult(room, cutterId, targetId, wireIndex, cardType);
+
+        // Handle round completion
+        if (!result.gameOver && gameStateManager.isRoundComplete(room.gameState, room.players.size)) {
+            this.scheduleRoundTransition(room);
+        } else if (!result.gameOver) {
+            // Move to next turn
+            gameStateManager.nextTurn(room.gameState, targetId);
+        }
+
+        roomManager.touchRoom(roomId);
+        return result;
+    }
+
+    /**
+     * Process wire cut result
+     */
+    private processWireCutResult(
+        room: Room,
+        cutterId: string,
+        targetId: string,
+        wireIndex: number,
+        cardType: CardType
+    ): WireCutResult {
+        const gameState = room.gameState!;
+        let gameOver = false;
+        let winner: 'good' | 'evil' | undefined;
+
+        if (cardType === 'bomb') {
+            gameStateManager.recordBombFound(gameState);
+            gameOver = true;
+            winner = 'evil';
+        } else if (cardType === 'safe') {
+            gameStateManager.recordDefuseFound(gameState);
+            if (gameStateManager.checkGoodWin(gameState)) {
+                gameOver = true;
+                winner = 'good';
+            }
+        }
+
+        if (gameOver && winner) {
+            roomManager.updateRoomState(room.id, 'finished');
+            gameStateManager.setWinner(gameState, winner);
+        }
+
+        return {
+            cutterId,
+            targetId,
+            wireIndex,
+            cardType,
+            defusesFound: gameState.defusesFound,
+            bombFound: gameState.bombFound,
+            gameOver,
+            winner,
         };
-        player.wireCards.push(wireCard);
-      }
-    });
-
-    // Update game state
-    gameState.currentRound++;
-    gameState.wiresPerPlayer = newCardsPerPlayer;
-    gameState.cardsRevealedThisRound = 0;
-
-    // Reset player declarations for new round
-    gameState.playerDeclarations = {};
-
-    // Set first player for new round to the last targeted player
-    if (gameState.lastTargetedPlayerId) {
-      const targetIndex = gameState.turnOrder.indexOf(gameState.lastTargetedPlayerId);
-      if (targetIndex !== -1) {
-        gameState.currentPlayerIndex = targetIndex;
-      }
     }
 
-    return true;
-  }
-
-  startGame(roomId: string, _masterToken?: string): boolean {
-    const room = this.rooms.get(roomId);
-    if (!room) return false;
-    if (room.state !== 'lobby' && room.state !== 'finished') return false;
-    if (room.players.size < config.game.minPlayers) return false;
-
-    const playerCount = room.players.size;
-    const players = Array.from(room.players.values());
-
-    const roles = this.distributeRoles(playerCount);
-    const wireDeck = this.createWireDeck(playerCount);
-
-    players.forEach((player, index) => {
-      player.role = roles[index];
-      player.wireCards = [];
-
-      // Each player gets 5 cards initially
-      for (let i = 0; i < 5; i++) {
-        const cardType = wireDeck.pop()!;
-        const wireCard: WireCard = {
-          id: uuidv4(),
-          type: cardType,
-          isCut: false,
-          position: i,
-        };
-        player.wireCards.push(wireCard);
-      }
-    });
-
-    const turnOrder = this.shuffle(players.map(p => p.id));
-    const { safeWireCount } = this.calculateGameParameters(playerCount);
-
-    const gameState: GameState = {
-      currentPlayerIndex: 0,
-      currentRound: 1,
-      defusesFound: 0, // This will track safe wires found
-      bombFound: false,
-      turnOrder,
-      wiresPerPlayer: 5, // Start with 5 cards per player
-      totalDefusesNeeded: safeWireCount, // Need to find ALL safe wires
-      cardsRevealedThisRound: 0,
-    };
-
-    room.state = 'in_game';
-    room.gameState = gameState;
-    room.updatedAt = new Date();
-
-    return true;
-  }
-
-  cutWire(roomId: string, cutterId: string, targetId: string, wireIndex: number): WireCutResult | null {
-    const room = this.rooms.get(roomId);
-    if (!room || !room.gameState) return null;
-    if (room.state !== 'in_game') return null;
-
-    const gameState = room.gameState;
-    const currentPlayerId = gameState.turnOrder[gameState.currentPlayerIndex];
-
-    if (currentPlayerId !== cutterId) return null;
-    if (cutterId === targetId) return null;
-
-    const targetPlayer = room.players.get(targetId);
-    if (!targetPlayer) return null;
-
-    const wire = targetPlayer.wireCards[wireIndex];
-    if (!wire || wire.isCut) return null;
-
-    wire.isCut = true;
-    const cardType = wire.type;
-    gameState.cardsRevealedThisRound++;
-    gameState.lastTargetedPlayerId = targetId;
-
-    let gameOver = false;
-    let winner: 'good' | 'evil' | undefined;
-
-    if (cardType === 'bomb') {
-      gameState.bombFound = true;
-      gameOver = true;
-      winner = 'evil';
-    } else if (cardType === 'safe') {
-      gameState.defusesFound++;
-      if (gameState.defusesFound >= gameState.totalDefusesNeeded) {
-        gameOver = true;
-        winner = 'good';
-      }
-    }
-    // Neutral cards do nothing special
-
-    if (!gameOver) {
-      // Check if round should end (revealed = player count)
-      const playerCount = room.players.size;
-      if (gameState.cardsRevealedThisRound >= playerCount) {
-        // Round ends - set flag but don't redistribute yet
+    /**
+     * Schedule round transition
+     */
+    private scheduleRoundTransition(room: Room): void {
         console.log('🎯 SERVER: Round complete, will start 5s timer after returning result');
 
-        // Schedule redistribution after 5 seconds
         setTimeout(() => {
-          console.log('🔄 SERVER: 5s elapsed, redistributing cards...');
-          const canContinue = this.redistributeCards(room);
-          console.log('📊 SERVER: Redistribution result:', canContinue);
-          console.log('📋 SERVER: New cards per player:', room.gameState?.wiresPerPlayer);
+            console.log('🔄 SERVER: 5s elapsed, redistributing cards...');
+            const success = this.redistributeCards(room);
 
-          if (!canContinue) {
-            // Not enough cards to continue - evil wins
-            console.log('❌ SERVER: Not enough cards, evil wins');
-            const { socketServiceInstance } = require('../services/socket.service');
-            if (socketServiceInstance?.getIO) {
-              socketServiceInstance.getIO().to(roomId).emit('game_over', {
-                winnerTeam: 'evil',
-                players: Array.from(room.players.values()).map(p => ({
-                  id: p.id,
-                  name: p.displayName,
-                  role: p.role!,
-                })),
-              });
-            }
-          } else {
-            // Send updated cards to clients
-            console.log('📡 SERVER: Sending players_update to clients');
-            const { socketServiceInstance } = require('../services/socket.service');
-            if (socketServiceInstance?.getIO) {
-              const playersData = Array.from(room.players.values()).map(p => ({
-                id: p.id,
-                displayName: p.displayName,
-                isConnected: p.isConnected,
-                isMaster: p.isMaster,
-                wireCards: p.wireCards.map(card => ({
-                  position: card.position,
-                  isCut: card.isCut,
-                  type: card.isCut ? card.type : undefined, // Only show type if cut
-                })),
-              }));
-              console.log('📦 SERVER: Players data:', playersData[0]?.wireCards?.length, 'cards per player');
-              socketServiceInstance.getIO().to(roomId).emit('players_update', {
-                players: playersData,
-                gameState: {
-                  wiresPerPlayer: gameState.wiresPerPlayer,
-                  cardsRevealedThisRound: 0,
-                  currentRound: gameState.currentRound
+            if (!success) {
+                console.log('❌ SERVER: Not enough cards, evil wins');
+                roomManager.updateRoomState(room.id, 'finished');
+                if (room.gameState) {
+                    gameStateManager.setWinner(room.gameState, 'evil');
                 }
-              });
-
-              // Send new private hands to each player
-              console.log('🎴 SERVER: Sending private hands to players');
-              room.players.forEach((player) => {
-                const playerSocket = socketServiceInstance.getIO().sockets.sockets.get(player.socketId);
-                if (playerSocket) {
-                  playerSocket.emit('private_hand', {
-                    role: player.role!,
-                    wireCards: player.wireCards.map((card, index) => ({
-                      position: index,
-                      isOwn: true,
-                      type: card.type,
-                      isCut: card.isCut,
-                    })),
-                  });
-                }
-              });
-
-              // Send player_turn event to indicate who plays next
-              const nextPlayerId = gameState.turnOrder[gameState.currentPlayerIndex];
-              const nextPlayer = room.players.get(nextPlayerId);
-              console.log('🎯 SERVER: Sending player_turn to:', nextPlayer?.displayName);
-              socketServiceInstance.getIO().to(roomId).emit('player_turn', {
-                playerId: nextPlayerId,
-                playerName: nextPlayer?.displayName || '',
-              });
+                communicatorService.broadcastGameOver(room, 'evil');
             } else {
-              console.log('❌ SERVER: socketServiceInstance not available');
+                console.log('📡 SERVER: Sending updates to clients');
+                // Broadcast the redistribution with new hands
+                communicatorService.broadcastRedistribution(room);
             }
-          }
-        }, 5000); // 5 seconds delay for client timers
-      } else {
-        // Continue round - targeted player becomes active
-        const targetPlayerIndex = gameState.turnOrder.indexOf(targetId);
-        if (targetPlayerIndex !== -1) {
-          gameState.currentPlayerIndex = targetPlayerIndex;
-        }
-      }
-    } else {
-      room.state = 'finished';
-      gameState.winner = winner;
+        }, 5000);
     }
 
-    room.updatedAt = new Date();
+    /**
+     * Redistribute cards for new round
+     */
+    private redistributeCards(room: Room): boolean {
+        if (!room.gameState) return false;
 
-    return {
-      cutterId,
-      targetId,
-      wireIndex,
-      cardType,
-      defusesFound: gameState.defusesFound,
-      bombFound: gameState.bombFound,
-      gameOver,
-      winner,
-    };
-  }
+        const players = playerManager.getPlayersArray(room);
+        const newCardsPerPlayer = Math.max(1, room.gameState.wiresPerPlayer - 1);
 
-  getRoom(roomId: string): Room | undefined {
-    return this.rooms.get(roomId);
-  }
+        // Check if redistribution is possible
+        if (!cardService.canRedistributeCards(players, newCardsPerPlayer)) {
+            return false;
+        }
 
-  getAllPublicRooms(): Room[] {
-    return Array.from(this.rooms.values()).filter(
-      room => room.options.isPublic && room.state === 'lobby'
-    );
-  }
+        // Redistribute cards
+        cardService.redistributeCards(players, newCardsPerPlayer);
 
-  kickPlayer(roomId: string, playerId: string, _masterToken?: string): boolean {
-    const room = this.rooms.get(roomId);
-    if (!room) return false;
-    if (room.state !== 'lobby') return false;
+        // Start new round
+        gameStateManager.startNewRound(room.gameState, newCardsPerPlayer);
 
-    const player = room.players.get(playerId);
-    if (!player || player.isMaster) return false;
+        return true;
+    }
 
-    room.players.delete(playerId);
-    room.updatedAt = new Date();
+    /**
+     * Kick a player from room
+     */
+    kickPlayer(roomId: string, playerId: string, requesterId: string): boolean {
+        const room = roomManager.getRoom(roomId);
+        if (!room) return false;
 
-    return true;
-  }
+        if (!playerManager.canKickPlayer(room, playerId, requesterId)) {
+            return false;
+        }
 
-  removeRoom(roomId: string): void {
-    this.rooms.delete(roomId);
-  }
+        return playerManager.removePlayerFromRoom(room, playerId);
+    }
+
+    /**
+     * Handle player declaration
+     */
+    declareWires(
+        roomId: string,
+        playerId: string,
+        declaration: { safeWires: number; hasBomb: boolean }
+    ): boolean {
+        const room = roomManager.getRoom(roomId);
+        if (!room || !room.gameState) return false;
+
+        gameStateManager.addPlayerDeclaration(room.gameState, playerId, declaration);
+        roomManager.touchRoom(roomId);
+
+        return true;
+    }
+
+    /**
+     * Get room
+     */
+    getRoom(roomId: string): Room | undefined {
+        return roomManager.getRoom(roomId);
+    }
+
+    /**
+     * Get all public rooms
+     */
+    getAllPublicRooms(): Room[] {
+        return roomManager.getPublicLobbyRooms();
+    }
+
+    /**
+     * Remove room
+     */
+    removeRoom(roomId: string): void {
+        roomManager.removeRoom(roomId);
+    }
 }
 
 export const gameEngine = new GameEngine();
