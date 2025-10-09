@@ -5,8 +5,8 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    networks:
+      - timebomb-net
     restart: unless-stopped
 
   postgres:
@@ -15,38 +15,50 @@ services:
     environment:
       POSTGRES_DB: timebomb
       POSTGRES_USER: timebomb
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    networks:
+      - timebomb-net
     restart: unless-stopped
 
   backend:
     build: ./backend
     container_name: timebomb-backend
+    env_file:
+      - ./.env
     environment:
       NODE_ENV: production
       PORT: 3000
       REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://timebomb:password@postgres:5432/timebomb
-      JWT_SECRET: ${JWT_SECRET:-your-production-secret-key}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      DATABASE_URL: postgresql://timebomb:${POSTGRES_PASSWORD:-changeme}@postgres:5432/timebomb
+      JWT_SECRET: ${JWT_SECRET:-changeme}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:63333}
     depends_on:
       - redis
       - postgres
-    ports:
-      - "3000:3000"
+    networks:
+      - timebomb-net
     restart: unless-stopped
 
   frontend:
     build: ./frontend
     container_name: timebomb-frontend
+    env_file:
+      - ./.env
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:63333}
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "63333:80"
+    networks:
+      - timebomb-net
     restart: unless-stopped
+
+networks:
+  timebomb-net:
+    driver: bridge
 
 volumes:
   redis_data:
